@@ -65,7 +65,7 @@ export function validatePreset(value: unknown): asserts value is ProfilePresetEx
     const styles = p.displayNameStyles as Record<string, unknown> | null | undefined;
     if (styles != null && (typeof styles !== "object" || Array.isArray(styles)
         || !Number.isInteger(styles.fontId ?? styles.font_id) || !Number.isInteger(styles.effectId ?? styles.effect_id)
-        || !Array.isArray(styles.colors) || styles.colors.length > 3 || !styles.colors.every(color))) throw new Error("Invalid display-name style.");
+        || !Array.isArray(styles.colors) || !styles.colors.every(color))) throw new Error("Invalid display-name style.");
 }
 
 export function normalisePresets(value: unknown): ProfilePresetEx[] {

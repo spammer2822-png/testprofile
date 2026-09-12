@@ -35,6 +35,10 @@ jobs:
           cp -R ProfileSets .vencord/src/userplugins/profileSets
       - name: Regression tests
         run: node scripts/test.mjs
+      - name: Install UI test dependencies
+        run: npm install --prefix scripts/ui --ignore-scripts --no-audit --no-fund
+      - name: Browser interaction and layout checks
+        run: node scripts/ui/check.mjs
       - name: Build desktop
         working-directory: .vencord
         run: pnpm build

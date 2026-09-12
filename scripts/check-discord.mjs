@@ -30,6 +30,7 @@ try {
             pendingStore: typeof store.getPendingChanges === "function",
             pendingAction: source.length > 0,
             fields: matches,
+            imageObjectFieldsPresent: modules.some(code => code.includes("pendingAvatar") && code.includes("imageUri")),
             excerpts: source.map(code => {
                 const position = code.indexOf("USER_PROFILE_SETTINGS_SET_PENDING_CHANGES");
                 return code.slice(Math.max(0, position - 120), position + 5000);
@@ -37,10 +38,11 @@ try {
             limitation: "Logged-out Discord Stable module inspection only; authenticated profile saves and entitlements require manual verification."
         };
     });
+    delete result.excerpts;
     await mkdir("test-results", { recursive: true });
     await writeFile("test-results/discord-compatibility.json", JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));
-    if (!result.pendingStore || !result.pendingAction) throw new Error("Discord profile integration anchors could not be verified.");
+    if (!result.pendingStore || !result.pendingAction || Object.values(result.fields).some(value => !value)) throw new Error("Discord profile integration anchors could not be verified.");
 } finally {
     await browser.close();
 }
