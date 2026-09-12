@@ -1,0 +1,332 @@
+.vc-profile-presets-tab-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    width: 100%;
+    max-width: 760px;
+    margin-bottom: 20px;
+}
+
+.vc-profile-presets-tab-heading {
+    margin: 0 0 4px;
+}
+
+.vc-profile-presets-tab-description {
+    max-width: 560px;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.vc-profile-presets-scope-card,
+.vc-profile-presets-section {
+    width: 100%;
+    max-width: 760px;
+    min-width: 0;
+    box-sizing: border-box;
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    border-radius: 12px;
+    background: var(--background-surface-high, var(--background-secondary));
+}
+
+.vc-profile-presets-scope-card {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 14px;
+}
+
+.vc-profile-presets-section {
+    align-self: flex-start;
+    margin-bottom: 20px;
+    padding: 18px;
+}
+
+.vc-profile-presets-section-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.vc-profile-presets-guild-picker {
+    width: min(320px, 100%);
+}
+
+.vc-profile-presets-field-label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-secondary, var(--text-normal));
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.vc-profile-presets-empty-state,
+.vc-profile-presets-no-results {
+    width: 100%;
+    max-width: 760px;
+    box-sizing: border-box;
+    padding: 24px;
+    border: 1px dashed var(--border-subtle, var(--background-modifier-accent));
+    border-radius: 12px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.vc-profile-presets-section-heading-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.vc-profile-presets-heading {
+    margin: 0;
+    color: var(--text-primary, var(--header-primary));
+    font-size: 16px;
+    font-weight: 650;
+}
+
+.vc-profile-presets-count {
+    min-width: 20px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--background-modifier-accent);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
+}
+
+.vc-profile-presets-text {
+    margin-bottom: 10px;
+}
+
+.vc-profile-presets-text-input {
+    width: 100%;
+    max-width: 520px;
+    min-width: 0;
+}
+
+.vc-profile-presets-search {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.vc-profile-presets-search-button {
+    min-width: 112px;
+}
+
+.vc-profile-presets-list-container {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.vc-profile-presets-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 10px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    outline: none;
+    background: var(--background-surface-higher, var(--background-primary));
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.vc-profile-presets-row:hover {
+    border-color: var(--border-subtle, var(--background-modifier-accent));
+    background: var(--background-modifier-hover);
+}
+
+.vc-profile-presets-row:active {
+    transform: translateY(1px);
+}
+
+.vc-profile-presets-row:focus-visible {
+    border-color: var(--brand-500, var(--brand-experiment));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-500, var(--brand-experiment)) 35%, transparent);
+}
+
+.vc-profile-presets-row.selected {
+    border-color: var(--brand-500, var(--brand-experiment));
+    background: var(--brand-10a, var(--background-modifier-selected));
+}
+
+.vc-profile-presets-avatar-url {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.vc-profile-presets-avatar {
+    flex-shrink: 0;
+    border: 2px solid var(--background-surface-highest, var(--background-tertiary));
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.vc-profile-presets-rename {
+    flex: 1;
+    min-width: 0;
+}
+
+.vc-profile-presets-name {
+    overflow: hidden;
+    margin-bottom: 3px;
+    color: var(--text-primary, var(--header-primary));
+    font-size: 15px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-profile-presets-timestamp {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-profile-presets-updated {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.vc-profile-presets-menu-icon {
+    display: inline-grid;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    outline: none;
+    background: transparent;
+    color: var(--interactive-normal);
+    cursor: pointer;
+    place-items: center;
+}
+
+.vc-profile-presets-menu-icon:hover {
+    background: var(--background-modifier-hover);
+    color: var(--interactive-hover);
+}
+
+.vc-profile-presets-menu-icon:focus-visible {
+    box-shadow: 0 0 0 2px var(--brand-500, var(--brand-experiment));
+}
+
+.vc-profile-presets-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.vc-profile-presets-page {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.vc-profile-presets-page-input {
+    width: 42px;
+    box-sizing: border-box;
+    padding: 5px;
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    border-radius: 6px;
+    outline: none;
+    background: var(--background-surface-highest, var(--background-secondary));
+    color: var(--text-primary, var(--text-normal));
+    text-align: center;
+}
+
+.vc-profile-presets-page-input:focus {
+    border-color: var(--brand-500, var(--brand-experiment));
+}
+
+.vc-profile-presets-page-of {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.vc-profile-presets-block {
+    margin: 16px 0 0;
+    border: 0;
+    border-top: 1px solid var(--border-subtle, var(--background-modifier-accent));
+}
+
+.vc-profile-presets-pending-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 16px;
+    padding: 12px 14px;
+    border: 1px solid color-mix(in srgb, var(--brand-500, var(--brand-experiment)) 45%, transparent);
+    border-radius: 10px;
+    background: var(--brand-10a, var(--background-modifier-selected));
+}
+
+.vc-profile-presets-pending-notice > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.vc-profile-presets-pending-notice strong {
+    color: var(--text-primary, var(--header-primary));
+    font-size: 14px;
+}
+
+.vc-profile-presets-pending-notice span {
+    color: var(--text-secondary, var(--text-normal));
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+@media (width <= 700px) {
+    .vc-profile-presets-tab-header,
+    .vc-profile-presets-scope-card,
+    .vc-profile-presets-pending-notice {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .vc-profile-presets-list-container {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .vc-profile-presets-guild-picker {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vc-profile-presets-row {
+        transition: none;
+    }
+}
