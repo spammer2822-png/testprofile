@@ -74,7 +74,7 @@ function ProfileSetsTab() {
 
     React.useEffect(() => {
         if (guildOptions.some(option => option.value === guildId)) return;
-        setGuildId(guildOptions.some(option => option.value === lastSelectedGuildId) ? lastSelectedGuildId : guildOptions[0]?.value);
+        setGuildId(guildOptions.some(option => option.value === lastSelectedGuildId) ? lastSelectedGuildId ?? undefined : guildOptions[0]?.value);
     }, [guildId, guildOptions, lastSelectedGuildId]);
 
     const selectedGuild = section === "server" && guildId

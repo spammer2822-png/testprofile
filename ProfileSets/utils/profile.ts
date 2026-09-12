@@ -300,7 +300,7 @@ export async function getCurrentProfile(guildId?: string, options: CurrentProfil
 
     const avatarInput: ImageInput = hasImageInput(avatarToUse)
         ? avatarToUse
-        : IconUtils.getUserAvatarURL(currentUser, true, 512);
+        : isGuildProfile ? IconUtils.getUserAvatarURL(currentUser, true, 512) : IconUtils.getDefaultAvatarURL(currentUser.id);
     const bannerToUse: ImageInput = pendingChanges.pendingBanner !== undefined
         ? pendingChanges.pendingBanner
         : (isGuildProfile ? (guildProfile?.banner ?? null) : baseProfile?.banner);

@@ -33,6 +33,8 @@ jobs:
         run: |
           mkdir -p .vencord/src/userplugins
           cp -R ProfileSets .vencord/src/userplugins/profileSets
+      - name: Regression tests
+        run: node scripts/test.mjs
       - name: Build desktop
         working-directory: .vencord
         run: pnpm build
@@ -42,3 +44,37 @@ jobs:
       - name: Build web
         working-directory: .vencord
         run: pnpm buildWeb
+      - name: Build Discord compatibility reporter
+        working-directory: .vencord
+        run: pnpm buildReporter
+      - name: Inspect current Discord Stable profile modules
+        run: node scripts/check-discord.mjs
+      - name: Package verified source
+        run: |
+          mkdir -p package
+          cp -R ProfileSets package/ProfileSets
+          cp -R test-results package/test-results
+          cp README.md package/README.md
+          python3 - <<'PY'
+          import pathlib, zipfile
+          root = pathlib.Path("package")
+          with zipfile.ZipFile("ProfileSets-tested.zip", "w", zipfile.ZIP_DEFLATED) as z:
+              for path in sorted(root.rglob("*")):
+                  if path.is_file():
+                      z.write(path, path.relative_to(root))
+          with zipfile.ZipFile("ProfileSets-tested.zip") as z:
+              assert z.testzip() is None
+              assert "ProfileSets/index.tsx" in z.namelist()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ProfileSets-tested
+          path: package/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ProfileSets-test-results
+          path: test-results/
+          if-no-files-found: ignore
