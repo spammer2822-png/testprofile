@@ -31,7 +31,8 @@ body.light { --text-primary:#202127; --header-primary:#202127; --text-normal:#30
 .test-menu { position:fixed; top:100px; right:50px; background:var(--background-secondary); padding:12px; z-index:20; border:1px solid var(--border-subtle); border-radius:8px; }
 .test-menu button { display:block; width:100%; padding:10px; border:0; color:inherit; background:transparent; text-align:left; cursor:pointer; }
 select { padding:10px; border-radius:8px; width:100%; }
-${buttonStyles}\n${styles}</style></head><body><div id="app"></div><div id="modals"></div><div id="menus"></div><script src="/bundle.js"></script></body></html>`;
+${buttonStyles}\
+${styles}</style></head><body><div id="app"></div><div id="modals"></div><div id="menus"></div><script src="/bundle.js"></script></body></html>`;
 const server = createServer((req, res) => { res.setHeader("Content-Type", req.url === "/bundle.js" ? "text/javascript" : "text/html"); res.end(req.url === "/bundle.js" ? bundle.outputFiles[0].text : html); });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 const executablePath = [process.env.CHROMIUM_BIN, "/usr/bin/google-chrome", "/usr/bin/chromium"].find(path => path && existsSync(path));
@@ -43,6 +44,13 @@ page.on("pageerror", error => errors.push(error.message));
 const click = async text => {
     await page.waitForFunction(text => Array.from(document.querySelectorAll("button")).some(button => button.textContent.trim() === text && !button.disabled), {}, text);
     await page.evaluate(text => Array.from(document.querySelectorAll("button")).find(button => button.textContent.trim() === text).click(), text);
+};
+const clickSelector = async selector => {
+    await page.waitForFunction(selector => {
+        const button = document.querySelector(selector);
+        return button instanceof HTMLButtonElement && !button.disabled;
+    }, {}, selector);
+    await page.evaluate(selector => document.querySelector(selector)?.click(), selector);
 };
 const fill = async (selector, text) => { await page.click(selector, { clickCount: 3 }); await page.keyboard.type(text); };
 const capture = async name => {
@@ -86,7 +94,7 @@ try {
     await page.waitForFunction(() => !document.querySelector('[role="dialog"]'));
     assert.equal(await page.evaluate(() => window.__ui.dispatches.length), 0);
     results.push("Editing a saved profile is isolated from the active profile");
-    await page.click('[aria-label="Apply Night mode"]');
+    await clickSelector('[aria-label="Apply Night mode"]');
     await page.waitForFunction(() => window.__ui.pending.main?.pendingBio === "Edited saved draft");
     assert.equal(await page.evaluate(() => window.__ui.statuses.length), 1);
     assert.ok(await page.evaluate(() => window.__ui.pending.main.pendingAvatar.imageUri.startsWith("data:image/gif")));
