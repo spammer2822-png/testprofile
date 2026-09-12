@@ -5,150 +5,91 @@
  */
 
 import { DataStore } from "@api/index";
-import { Logger } from "@utils/Logger";
-import { ProfilePreset } from "@vencord/discord-types";
 import { UserStore } from "@webpack/common";
 
-const logger = new Logger("ProfilePresets");
-const LEGACY_PRESETS_KEY = "ProfileDataset";
-const MAIN_PRESETS_KEY = "ProfilePresets_v2_Main";
-const SERVER_PRESETS_KEY = "ProfilePresets_v2_Server";
+import { normalisePresets, type PresetSection, type ProfilePresetEx } from "./schema";
 
-export type PresetSection = "main" | "server";
+export type { PresetSection, ProfileFrameLike, ProfilePresetEx } from "./schema";
+export type PresetScope = { key: string; userId: string; generation: number; };
+type Snapshot = { presets: ProfilePresetEx[]; loading: boolean; error: string | null; };
+let snapshot: Snapshot = { presets: [], loading: true, error: null };
+let activeScope: PresetScope | null = null;
+let generation = 0;
+let writeQueue: Promise<unknown> = Promise.resolve();
+const listeners = new Set<() => void>();
 
-export type ProfileFrameLike = {
-    skuId: string;
-    label?: string;
-    layers?: unknown[];
-    [key: string]: unknown;
-};
-
-export type ProfilePresetEx = Omit<ProfilePreset, "profileFrame"> & {
-    avatarRaw?: string | null;
-    profileFrame?: ProfileFrameLike | null;
-};
-
-export let presets: ProfilePresetEx[] = [];
-export let currentPresetIndex = -1;
-let activeScopeKey: string | null = null;
-let loadGeneration = 0;
-
-function resetPresets(nextPresets: ProfilePresetEx[] = []) {
-    presets = nextPresets;
-    currentPresetIndex = -1;
+export const getSnapshot = () => snapshot;
+export function subscribe(listener: () => void) {
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
 }
-
-function getPresetsKey(section: PresetSection, userId: string) {
-    const baseKey = section === "main" ? MAIN_PRESETS_KEY : SERVER_PRESETS_KEY;
-    return `${baseKey}:${userId}`;
+function publish(next: Snapshot) {
+    snapshot = next;
+    for (const listener of listeners) listener();
 }
-
-function getLegacyKey(userId: string) {
-    return `${LEGACY_PRESETS_KEY}:${userId}:main`;
+function keyFor(section: PresetSection, userId: string) {
+    return `ProfilePresets_v2_${section === "main" ? "Main" : "Server"}:${userId}`;
 }
-
+export function assertScope(scope: PresetScope) {
+    if (activeScope?.generation !== scope.generation || activeScope.key !== scope.key || UserStore.getCurrentUser()?.id !== scope.userId) {
+        throw new Error("The account or profile collection changed. Please try again.");
+    }
+}
+export function getScope(section: PresetSection): PresetScope {
+    if (!activeScope || snapshot.loading || snapshot.error || activeScope.key !== keyFor(section, activeScope.userId)) {
+        throw new Error("Wait for your saved profiles to finish loading.");
+    }
+    assertScope(activeScope);
+    return { ...activeScope };
+}
+export function clearStorageSession() {
+    generation++;
+    activeScope = null;
+    publish({ presets: [], loading: true, error: null });
+}
 export async function loadPresets(section: PresetSection) {
-    const generation = ++loadGeneration;
-
+    const userId = UserStore.getCurrentUser()?.id;
+    const currentGeneration = ++generation;
+    activeScope = userId ? { key: keyFor(section, userId), userId, generation: currentGeneration } : null;
+    publish({ presets: [], loading: true, error: null });
+    if (!activeScope) {
+        publish({ presets: [], loading: false, error: "Sign in to Discord to use Profile Sets." });
+        return;
+    }
+    const scope = { ...activeScope };
     try {
-        const currentUser = UserStore.getCurrentUser();
-        if (!currentUser) {
-            if (generation === loadGeneration) {
-                activeScopeKey = null;
-                resetPresets();
-            }
-            return;
-        }
-
-        const userId = currentUser.id;
-        const key = getPresetsKey(section, userId);
-        const stored = await DataStore.get(key);
-        if (generation !== loadGeneration) return;
-
-        activeScopeKey = key;
-        if (stored && Array.isArray(stored)) {
-            resetPresets(stored);
-            return;
-        }
-
-        if (section === "main") {
-            const legacyKey = getLegacyKey(userId);
-            const legacyStored = await DataStore.get(legacyKey);
-            const legacyBaseStored = await DataStore.get(LEGACY_PRESETS_KEY);
-            if (generation !== loadGeneration) return;
-
-            const legacyToUse = Array.isArray(legacyStored)
-                ? legacyStored
-                : (Array.isArray(legacyBaseStored) ? legacyBaseStored : null);
-            if (legacyToUse) {
-                resetPresets(legacyToUse);
-                await DataStore.set(key, legacyToUse);
-                await DataStore.del(legacyKey);
-                await DataStore.del(LEGACY_PRESETS_KEY);
-                return;
+        // Complete already-started writes before reading the same collection again.
+        await writeQueue;
+        assertScope(scope);
+        let stored = await DataStore.get(scope.key);
+        assertScope(scope);
+        if (stored == null && section === "main") {
+            const legacyKey = `ProfileDataset:${userId}:main`;
+            const legacy = await DataStore.get(legacyKey) ?? await DataStore.get("ProfileDataset");
+            assertScope(scope);
+            if (legacy != null) {
+                stored = normalisePresets(legacy);
+                await DataStore.set(scope.key, stored);
+                // Keep the original legacy backup until the user exports it.
             }
         }
-        resetPresets();
-    } catch (err) {
-        logger.error("Failed to load presets", err);
-        if (generation === loadGeneration) resetPresets();
+        const presets = normalisePresets(stored ?? []);
+        assertScope(scope);
+        publish({ presets, loading: false, error: null });
+    } catch (error) {
+        if (activeScope?.generation !== scope.generation) return;
+        publish({ presets: [], loading: false, error: error instanceof Error ? error.message : "Could not read saved profiles." });
     }
 }
-
-export async function savePresetsData(section?: PresetSection) {
-    try {
-        if (!activeScopeKey && !section) return;
-        const currentUser = UserStore.getCurrentUser();
-        if (!currentUser) return;
-
-        const userId = currentUser.id;
-        const key = section ? getPresetsKey(section, userId) : activeScopeKey!;
-        await DataStore.set(key, [...presets]);
-    } catch (err) {
-        logger.error("Failed to save presets", err);
-    }
-}
-
-export function setCurrentPresetIndex(index: number) {
-    currentPresetIndex = index;
-}
-
-export function addPreset(preset: ProfilePresetEx) {
-    presets.push(preset);
-}
-
-export function updatePreset(index: number, preset: ProfilePresetEx) {
-    if (index >= 0 && index < presets.length) {
-        presets[index] = preset;
-    }
-}
-
-export function removePreset(index: number) {
-    if (index >= 0 && index < presets.length) {
-        presets.splice(index, 1);
-        if (currentPresetIndex === index) {
-            currentPresetIndex = -1;
-        } else if (currentPresetIndex > index) {
-            currentPresetIndex--;
+export async function changePresets(scope: PresetScope, transform: (items: ProfilePresetEx[]) => ProfilePresetEx[]) {
+    const write = writeQueue.then(async () => {
+        assertScope(scope);
+        const next = normalisePresets(transform([...snapshot.presets]));
+        await DataStore.set(scope.key, next);
+        if (activeScope?.generation === scope.generation && UserStore.getCurrentUser()?.id === scope.userId) {
+            publish({ presets: next, loading: false, error: null });
         }
-    }
-}
-
-export function movePresetInArray(fromIndex: number, toIndex: number) {
-    if (fromIndex < 0 || fromIndex >= presets.length || toIndex < 0 || toIndex >= presets.length) return;
-    const [preset] = presets.splice(fromIndex, 1);
-    presets.splice(toIndex, 0, preset);
-
-    if (currentPresetIndex === fromIndex) {
-        currentPresetIndex = toIndex;
-    } else if (fromIndex < toIndex && currentPresetIndex > fromIndex && currentPresetIndex <= toIndex) {
-        currentPresetIndex--;
-    } else if (toIndex < fromIndex && currentPresetIndex >= toIndex && currentPresetIndex < fromIndex) {
-        currentPresetIndex++;
-    }
-}
-
-export function replaceAllPresets(newPresets: ProfilePresetEx[]) {
-    presets = [...newPresets];
-    currentPresetIndex = -1;
+    });
+    writeQueue = write.catch(() => {});
+    await write;
 }
