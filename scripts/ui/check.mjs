@@ -52,7 +52,13 @@ const clickSelector = async selector => {
     }, {}, selector);
     await page.evaluate(selector => document.querySelector(selector)?.click(), selector);
 };
-const fill = async (selector, text) => { await page.click(selector, { clickCount: 3 }); await page.keyboard.type(text); };
+const fill = async (selector, text) => {
+    await page.click(selector);
+    await page.keyboard.down("Control");
+    await page.keyboard.press("A");
+    await page.keyboard.up("Control");
+    await page.keyboard.type(text);
+};
 const capture = async name => {
     await page.screenshot({ path: "test-results/" + name + ".png", fullPage: true });
 };
