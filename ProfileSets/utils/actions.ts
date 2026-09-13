@@ -9,7 +9,7 @@ import { findStoreLazy } from "@webpack";
 import { showToast, Toasts } from "@webpack/common";
 
 import { getCurrentProfile } from "./profile";
-import { addPreset, movePresetInArray, presets, PresetSection, type ProfilePresetEx, removePreset, replaceAllPresets, savePresetsData, updatePreset } from "./storage";
+import { addPreset, getStorageGuard, movePresetInArray, presets, PresetSection, type ProfilePresetEx, removePreset, replaceAllPresets, savePresetsData, updatePreset } from "./storage";
 
 const UserProfileSettingsStore = findStoreLazy("UserProfileSettingsStore");
 
@@ -34,8 +34,10 @@ export async function savePreset(
     guildId?: string,
     options: { isGuildProfile?: boolean; } = {}
 ) {
+    const guard = getStorageGuard(section);
     const isGuildProfile = options.isGuildProfile ?? section === "server";
     const profile = await getCurrentProfile(guildId, { isGuildProfile });
+    guard();
     const freshPendingAvatar = getFreshPendingAvatar(isGuildProfile, guildId);
     const effectiveAvatar = freshPendingAvatar ?? profile.avatarDataUrl ?? null;
 
@@ -57,8 +59,10 @@ export async function updatePresetFromCurrent(
 ) {
     if (index < 0 || index >= presets.length) return;
 
+    const guard = getStorageGuard(section);
     const isGuildProfile = options.isGuildProfile ?? section === "server";
     const profile = await getCurrentProfile(guildId, { isGuildProfile });
+    guard();
     const freshPendingAvatar = getFreshPendingAvatar(isGuildProfile, guildId);
 
     const updatedPreset = {
@@ -112,6 +116,7 @@ export async function importPresets(
     section: PresetSection,
     guildId?: string
 ) {
+    const guard = getStorageGuard(section);
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "application/json";
@@ -122,6 +127,7 @@ export async function importPresets(
             if (!file) return;
 
             const text = await file.text();
+            guard();
             const importedPresets: unknown = JSON.parse(text);
 
             if (!Array.isArray(importedPresets) || !importedPresets.every(preset => (
@@ -142,6 +148,7 @@ export async function importPresets(
 
             if (presets.length > 0) {
                 const decision = await onImportPrompt(presets.length);
+                guard();
                 if (decision === "cancel") return;
                 if (decision === "override") {
                     replaceAllPresets(validPresets);

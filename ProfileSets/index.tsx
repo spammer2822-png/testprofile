@@ -43,6 +43,7 @@ export default definePlugin({
         { name: "justjxke", id: 852558183087472640n }
     ],
     settings,
+    dependencies: ["UserSettingsAPI"],
 
     toolboxActions: {
         "Open Profile Sets": () => {

@@ -1,0 +1,7 @@
+.vencord/
+node_modules/
+ProfileSets/dev-tools/ui/node_modules/
+ProfileSets/test-results/
+__pycache__/
+dist/
+.zip-check*/

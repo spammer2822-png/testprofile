@@ -11,8 +11,8 @@ import { openModal, React, SelectedGuildStore, showToast, TextInput, Toasts, use
 
 import { cl, settings } from "../index";
 import { exportPresets, ImportDecision, importPresets, savePreset } from "../utils/actions";
-import { loadPresetAsPending } from "../utils/profile";
-import { currentPresetIndex, loadPresets, presets, PresetSection, setCurrentPresetIndex } from "../utils/storage";
+import { copyMainProfileToServer, loadPresetAsPending } from "../utils/profile";
+import { currentPresetIndex, loadError, loadPresets, presets, PresetSection, setCurrentPresetIndex } from "../utils/storage";
 import { ImportProfilesModal } from "./confirmModal";
 import { PresetList } from "./presetList";
 
@@ -30,6 +30,8 @@ export function PresetManager({ section, guildId, onOpenProfileEditor }: PresetM
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [isSaving, setIsSaving] = React.useState(false);
     const [isApplying, setIsApplying] = React.useState(false);
+    const [isCopying, setIsCopying] = React.useState(false);
+    const [copiedMainProfile, setCopiedMainProfile] = React.useState(false);
     const [currentPage, setCurrentPage] = React.useState(1);
     const [pageInput, setPageInput] = React.useState("1");
     const [selectedPreset, setSelectedPreset] = React.useState<number>(-1);
@@ -48,6 +50,9 @@ export function PresetManager({ section, guildId, onOpenProfileEditor }: PresetM
     const storageSection: PresetSection = isServerSection && useBasePresetsForServerProfiles
         ? "main"
         : resolvedSection;
+    const copyTarget = React.useRef<string | undefined>(undefined);
+    copyTarget.current = `${resolvedSection}:${resolvedGuildId}`;
+    React.useEffect(() => () => { copyTarget.current = undefined; }, []);
 
     React.useEffect(() => {
         let isActive = true;
@@ -60,6 +65,7 @@ export function PresetManager({ section, guildId, onOpenProfileEditor }: PresetM
             setPresetName("");
             setSearchQuery("");
             setSearchMode(false);
+            setCopiedMainProfile(false);
             forceUpdate();
         })();
         return () => {
@@ -122,6 +128,7 @@ export function PresetManager({ section, guildId, onOpenProfileEditor }: PresetM
                 isGuildProfile: resolvedSection === "server"
             });
             setSelectedPreset(index);
+            setCopiedMainProfile(false);
             setCurrentPresetIndex(index);
             forceUpdate();
             showToast(`Loaded “${preset.name}” as pending profile changes.`, Toasts.Type.SUCCESS);
@@ -153,6 +160,28 @@ export function PresetManager({ section, guildId, onOpenProfileEditor }: PresetM
         }
         lastRandomIndexRef.current = nextIndex;
         await applyPreset(nextIndex);
+    };
+
+    const handleCopyMainProfile = async () => {
+        if (!resolvedGuildId || isApplyingRef.current) return;
+        isApplyingRef.current = true;
+        setIsCopying(true);
+        try {
+            const target = copyTarget.current;
+            await copyMainProfileToServer(resolvedGuildId, () => {
+                if (copyTarget.current !== target) throw new Error("The selected server changed. Please try again.");
+            });
+            setSelectedPreset(-1);
+            setCurrentPresetIndex(-1);
+            setCopiedMainProfile(true);
+            showToast("Copied your main profile to this server's pending changes.", Toasts.Type.SUCCESS);
+        } catch (error) {
+            console.error("[ProfileSets] Failed to copy main profile", error);
+            showToast("Could not copy your main profile to this server.", Toasts.Type.FAILURE);
+        } finally {
+            isApplyingRef.current = false;
+            setIsCopying(false);
+        }
     };
 
     const showImportPrompt = (existingCount: number): Promise<ImportDecision> => {
@@ -214,6 +243,16 @@ export function PresetManager({ section, guildId, onOpenProfileEditor }: PresetM
                         {isSaving ? "Saving..." : "Save Profile"}
                     </Button>
                 )}
+                {isServerSection && !searchMode && (
+                    <Button
+                        size="small"
+                        variant="secondary"
+                        onClick={() => void handleCopyMainProfile()}
+                        disabled={!resolvedGuildId || isApplying || isCopying}
+                    >
+                        {isCopying ? "Copying..." : "Copy Main Profile to Server"}
+                    </Button>
+                )}
                 {hasPresets && (
                     <Button
                         size="small"
@@ -257,6 +296,8 @@ export function PresetManager({ section, guildId, onOpenProfileEditor }: PresetM
                     Export All
                 </Button>
             </div>
+
+            {loadError && <div className={cl("no-results")} role="alert">{loadError}</div>}
 
             {hasPresets && filteredPresets.length > 0 && (
                 <>
@@ -331,10 +372,10 @@ export function PresetManager({ section, guildId, onOpenProfileEditor }: PresetM
                 <div className={cl("no-results")}>No saved profiles match “{searchQuery.trim()}”.</div>
             )}
 
-            {selectedPreset >= 0 && (
+            {(selectedPreset >= 0 || copiedMainProfile) && (
                 <div className={cl("pending-notice")}>
                     <div>
-                        <strong>Preset loaded</strong>
+                        <strong>{copiedMainProfile ? "Main profile copied" : "Preset loaded"}</strong>
                         <span>Review the preview, then use Discord&apos;s Save Changes button.</span>
                     </div>
                     {onOpenProfileEditor && (

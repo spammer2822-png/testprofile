@@ -1,0 +1,81 @@
+name: ProfileSets final checks
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: profilesets-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PROFILESETS_VENCORD_DIR: ${{ github.workspace }}/.vencord
+      PROFILESETS_UI_PACKAGE: ${{ github.workspace }}/ProfileSets/dev-tools/ui/package.json
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: Vendicated/Vencord
+          ref: 0850f37fbb1623aa6330764d8f4b1e0b2617dcdf
+          path: .vencord
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install verification dependencies
+        run: |
+          pnpm --dir .vencord install --frozen-lockfile
+          npm ci --prefix ProfileSets/dev-tools/ui --ignore-scripts --no-audit --no-fund
+      - name: Package and extract the complete project
+        run: python3 ProfileSets/dev-tools/package.py --output dist/ProfileSets-candidate.zip --extract-dir .zip-check
+      - name: Regression tests from extracted ZIP
+        env:
+          PROFILESETS_TEST_OUTPUT: ${{ github.workspace }}/ProfileSets/test-results
+        run: node .zip-check/ProfileSets/dev-tools/test.mjs
+      - name: Browser interaction and layout checks from extracted ZIP
+        env:
+          PROFILESETS_TEST_OUTPUT: ${{ github.workspace }}/ProfileSets/test-results
+        run: node .zip-check/ProfileSets/dev-tools/ui/check.mjs
+      - name: Install extracted plugin in Vencord
+        run: |
+          mkdir -p .vencord/src/userplugins
+          cp -R .zip-check/ProfileSets .vencord/src/userplugins/profileSets
+      - name: Build desktop from extracted plugin
+        working-directory: .vencord
+        run: pnpm build
+      - name: Full Vencord TypeScript check
+        working-directory: .vencord
+        run: pnpm testTsc
+      - name: Build web from extracted plugin
+        working-directory: .vencord
+        run: pnpm buildWeb
+      - name: Build Discord compatibility reporter
+        working-directory: .vencord
+        run: pnpm buildReporter
+      - name: Inspect current Discord Stable profile modules
+        env:
+          PROFILESETS_TEST_OUTPUT: ${{ github.workspace }}/ProfileSets/test-results
+        run: node .zip-check/ProfileSets/dev-tools/check-discord.mjs
+      - name: Record checks and package final ZIP
+        run: |
+          node ProfileSets/dev-tools/report.mjs
+          python3 ProfileSets/dev-tools/package.py --output dist/ProfileSets.zip --extract-dir .zip-check-final
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ProfileSets-final
+          path: dist/ProfileSets.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ProfileSets-test-results
+          path: ProfileSets/test-results/
+          if-no-files-found: ignore

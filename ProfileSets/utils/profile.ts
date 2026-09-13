@@ -53,9 +53,14 @@ type DisplayNameStylesLike = DisplayNameStyles & {
 
 type CurrentProfileOptions = {
     isGuildProfile?: boolean;
+    includePending?: boolean;
+    refresh?: boolean;
+    strictImages?: boolean;
 };
 
 type LoadPresetOptions = {
+    guard?: () => void;
+    forceImages?: boolean;
     skipGlobalName?: boolean;
     skipBio?: boolean;
     skipPronouns?: boolean;
@@ -114,26 +119,27 @@ function getPendingValue<T>(pending: PendingChanges, key: keyof PendingChanges, 
     return value === undefined ? fallback : value as T;
 }
 
-async function ensureCurrentProfileLoaded(userId: string, guildId?: string) {
-    if (!UserProfileStore.getUserProfile(userId)) {
+async function ensureCurrentProfileLoaded(userId: string, guildId?: string, refresh = false) {
+    if (!refresh && !UserProfileStore.getUserProfile(userId)) {
         await fetchUserProfile(userId);
     }
 
-    if (!guildId || UserProfileStore.getGuildMemberProfile(userId, guildId)) return;
+    if (!refresh && (!guildId || UserProfileStore.getGuildMemberProfile(userId, guildId))) return;
 
     const cacheKey = `${userId}:${guildId}`;
-    if (fetchedGuildProfiles.has(cacheKey)) return;
+    if (!refresh && fetchedGuildProfiles.has(cacheKey)) return;
 
     const { body } = await RestAPI.get({
         url: Constants.Endpoints.USER_PROFILE(userId),
         query: {
-            guild_id: guildId,
+            ...(guildId ? { guild_id: guildId } : {}),
             with_mutual_guilds: false,
             with_mutual_friends_count: false
         },
         oldFormErrors: true
     });
 
+    if (UserStore.getCurrentUser()?.id !== userId) throw new Error("The Discord account changed. Please try again.");
     if (body.user) {
         FluxDispatcher.dispatch({ type: "USER_UPDATE", user: body.user });
     }
@@ -146,7 +152,7 @@ async function ensureCurrentProfileLoaded(userId: string, guildId?: string) {
         });
     }
 
-    fetchedGuildProfiles.add(cacheKey);
+    if (guildId) fetchedGuildProfiles.add(cacheKey);
 }
 
 function getProfileFrame(profile: unknown): ProfileFrameLike | null | undefined {
@@ -157,6 +163,7 @@ function getProfileFrame(profile: unknown): ProfileFrameLike | null | undefined 
 export async function imageUrlToBase64(url: string): Promise<string | null> {
     try {
         const response = await fetch(url);
+        if (!response.ok) throw new Error("Image download failed.");
         const blob = await response.blob();
         return await new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -199,12 +206,16 @@ async function processImage(imageData: ImageInput, userId: string, type: "avatar
 }
 
 export async function getCurrentProfile(guildId?: string, options: CurrentProfileOptions = {}): Promise<Omit<ProfilePresetEx, "name" | "timestamp">> {
-    const currentUser = UserStore.getCurrentUser();
+    let currentUser = UserStore.getCurrentUser();
     if (!currentUser) throw new Error("ProfileSets cannot read a profile before Discord has logged in.");
 
     const isGuildProfile = options.isGuildProfile ?? Boolean(guildId);
     const effectiveGuildId = isGuildProfile ? guildId : undefined;
-    await ensureCurrentProfileLoaded(currentUser.id, effectiveGuildId);
+    const userId = currentUser.id;
+    await ensureCurrentProfileLoaded(userId, effectiveGuildId, options.refresh);
+    if (UserStore.getCurrentUser()?.id !== userId) throw new Error("The Discord account changed. Please try again.");
+    // USER_UPDATE may replace the record, including its display-name style.
+    currentUser = UserStore.getCurrentUser()!;
 
     const baseProfile = UserProfileStore.getUserProfile(currentUser.id);
     const guildProfile = effectiveGuildId ? UserProfileStore.getGuildMemberProfile(currentUser.id, effectiveGuildId) : null;
@@ -212,7 +223,7 @@ export async function getCurrentProfile(guildId?: string, options: CurrentProfil
     const userAny = currentUser;
     const guildMember = effectiveGuildId ? GuildMemberStore.getMember(effectiveGuildId, currentUser.id) : null;
 
-    const pendingChanges: PendingChanges = isGuildProfile
+    const pendingChanges: PendingChanges = options.includePending === false ? {} : isGuildProfile
         ? (UserProfileSettingsStore.getPendingChanges(effectiveGuildId) ?? {})
         : (UserProfileSettingsStore.getPendingChanges() ?? {});
     const customStatusSetting = CustomStatusSettings.getSetting();
@@ -326,6 +337,9 @@ export async function getCurrentProfile(guildId?: string, options: CurrentProfil
     const useGuildBanner = !!(effectiveGuildId && isGuildProfile && guildProfile?.banner && bannerToUse === guildProfile?.banner);
 
     const bannerDataUrl = await processImage(bannerToUse, currentUser.id, "banner", effectiveGuildId, useGuildBanner);
+    if (options.strictImages && ((hasImageInput(avatarToUse) && !avatarDataUrl) || (hasImageInput(bannerToUse) && !bannerDataUrl))) {
+        throw new Error("Could not download the main profile images. Please try copying again.");
+    }
 
     return {
         avatarDataUrl: resolvedAvatarDataUrl,
@@ -402,9 +416,13 @@ function nameplateEq(a: { skuId?: string | number | null; asset?: string | null;
 
 export async function loadPresetAsPending(preset: ProfilePresetEx, guildId?: string, options: LoadPresetOptions = {}) {
     const isGuild = options.isGuildProfile ?? Boolean(guildId);
-    if (isGuild && !guildId) return;
+    if (isGuild && !guildId) throw new Error("Select a server first.");
 
+    const userId = UserStore.getCurrentUser()?.id;
+    options.guard?.();
     const current = await getCurrentProfile(guildId, { isGuildProfile: isGuild });
+    options.guard?.();
+    if (UserStore.getCurrentUser()?.id !== userId) throw new Error("The Discord account changed. Please try again.");
     const pendingChanges: PendingChanges = (isGuild && guildId
         ? UserProfileSettingsStore.getPendingChanges(guildId)
         : UserProfileSettingsStore.getPendingChanges()) ?? {};
@@ -423,7 +441,7 @@ export async function loadPresetAsPending(preset: ProfilePresetEx, guildId?: str
             : normalizeImageValue(current.avatarDataUrl);
         const pendingAvatar = normalizeImageValue(resolvePendingAvatar(pendingChanges));
         const hasPendingAvatar = pendingChanges.pendingAvatar !== undefined;
-        if (presetAvatar !== currentAvatar && (!hasPendingAvatar || presetAvatar !== pendingAvatar)) {
+        if (options.forceImages || (presetAvatar !== currentAvatar && (!hasPendingAvatar || presetAvatar !== pendingAvatar))) {
             const avatarPayload = avatarValue?.startsWith?.("data:")
                 ? {
                     assetOrigin: "NEW_ASSET",
@@ -447,7 +465,7 @@ export async function loadPresetAsPending(preset: ProfilePresetEx, guildId?: str
         }
     }
 
-    if ("bannerDataUrl" in preset && preset.bannerDataUrl !== current.bannerDataUrl) {
+    if ("bannerDataUrl" in preset && (options.forceImages || preset.bannerDataUrl !== current.bannerDataUrl)) {
         const bannerPayload = preset.bannerDataUrl?.startsWith?.("data:")
             ? {
                 assetOrigin: "NEW_ASSET",
@@ -527,4 +545,31 @@ export async function loadPresetAsPending(preset: ProfilePresetEx, guildId?: str
     if (Object.keys(pendingPayload).length) {
         setPendingChanges(pendingPayload, isGuild ? guildId : undefined);
     }
+}
+
+export async function copyMainProfileToServer(guildId: string, checkTarget?: () => void) {
+    if (!guildId) throw new Error("Select a server first.");
+    const userId = UserStore.getCurrentUser()?.id;
+    const guard = () => {
+        checkTarget?.();
+        if (!userId || UserStore.getCurrentUser()?.id !== userId) throw new Error("The Discord account changed. Please try again.");
+    };
+    guard();
+
+    const mainProfile = await getCurrentProfile(undefined, {
+        isGuildProfile: false,
+        includePending: false,
+        refresh: true,
+        strictImages: true
+    });
+    const serverProfile: ProfilePresetEx = {
+        ...mainProfile,
+        name: "Main profile",
+        timestamp: Date.now(),
+        customStatus: null,
+        primaryGuildId: null
+    };
+
+    guard();
+    await loadPresetAsPending(serverProfile, guildId, { isGuildProfile: true, guard, forceImages: true });
 }

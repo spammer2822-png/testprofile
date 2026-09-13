@@ -1,56 +1,52 @@
 # Profile Sets
 
-Save, organise, import, export and load complete Discord profile presets from a dedicated **Profile Sets** page in Vencord Settings.
+This is the original ProfileSets interface with one added control: **Copy Main Profile to Server**.
 
-## Current compatibility
+There is no Add New Profile screen or replacement layout. Saving, searching, importing, exporting, renaming, moving and applying profiles work through the original controls.
 
-Verified on 8 August 2026 against:
+## Recovering existing saved profiles
 
-- Discord Stable desktop shell `1.0.9251`
-- Discord web build `589596` (`95c90b96b37873e9caa7c79cc841ba6246589efd`)
-- Vencord `1.15.0`, commit `1a8c3b71bbfaeb195a7f402458b6b68b0ccea7ef`
+The previous test build could show **0 saved profiles** when one older saved image did not match its new strict validator. That error hid the entire collection from the page. It did not intentionally delete the collection.
 
-The old plugin patched two components inside Discord's former profile-settings page. Discord's new three-column profile editor removed both patch anchors, so the component never mounted. This version registers a normal Vencord settings page instead. It has no patch against Discord's profile layout and therefore does not disappear when Discord renames or rearranges that layout.
+This build removes that whole-collection validator and reads the original storage locations:
 
-## Saved fields
+- `ProfilePresets_v2_Main:<account id>`
+- `ProfilePresets_v2_Server:<account id>`
+- the older unscoped `ProfilePresets_v2_Main` / `ProfilePresets_v2_Server` backups
+- `ProfileDataset:<account id>:main` and `ProfileDataset`
 
-- Avatar and banner
-- Bio and pronouns
-- Main display name or server nickname
-- Avatar decoration
-- Nameplate
-- Display-name style
-- Profile effect
-- Profile frame (new profile layout)
-- Accent and profile theme colours
-- Primary server tag
-- Custom status for main profiles
+The account-specific collection is read unchanged, including its older image values. If its key is missing, ProfileSets can recover an older backup; backup keys are kept instead of deleted. An intentionally empty collection stays empty. An unscoped backup is associated with the first account that recovers it.
 
-Existing `ProfilePresets_v2_Main` and `ProfilePresets_v2_Server` data is reused; no preset migration is required.
+Install this build and open **User Settings → Vencord Settings → Profile Sets**. Your earlier profiles should return automatically if their data is still in Vencord's DataStore. Export them once they appear so you also have a separate JSON backup.
 
-## Use
+## Copy main profile to a server
 
-1. Open **User Settings → Vencord Settings → Profile Sets**. You can also use the plugin's **Open Profile Sets** toolbox action.
-2. Choose **Main Profile** or **Server Profile**. For a server profile, choose the server.
-3. Enter a name and select **Save Profile**.
-4. Select any saved profile to load it as Discord pending changes.
-5. Select **Review Profile**, inspect it in Discord's new profile editor, and use Discord's **Save Changes** button.
+1. Select **Server Profile**.
+2. Choose the server.
+3. Select **Copy Main Profile to Server**.
+4. Select **Review Profile**, check the pending changes, then use Discord's **Save Changes** button.
 
-Loading deliberately leaves profile fields as pending changes for review instead of submitting them automatically. Custom status is the exception because Discord stores it through a separate synced setting and may update it immediately. Avatar or banner presets use Discord's own image handling and may show its confirmation or entitlement UI when required.
+The operation reads the saved main profile from Discord, including its display-name font, effect and colours, while ignoring unsaved main-profile edits. It stages the layout only for the selected server. It does not change the main pending profile, custom status, primary-server tag or the saved-profile collection.
 
-## Install
+## Installation on Windows
 
-Profile Sets is a custom Vencord plugin, so Vencord must be built from source.
+1. Extract the ZIP. Its only top-level item is `ProfileSets/`.
+2. Move the entire previous `src\userplugins\profileSets` folder to a backup location outside `src\userplugins`, then put the extracted folder at `src\userplugins\profileSets`. Replace the folder as a whole: merging files would leave the removed draft editor behind and can break the build. `index.tsx` must be directly inside the replacement folder. Do not clear Discord/Vencord's application data; the saved profiles live there, separately from these plugin files.
+3. Open CMD and run:
 
-1. Copy this complete folder to `src/userplugins/profileSets` in your Vencord checkout.
-2. From the Vencord folder, run `pnpm install` if needed.
-3. Run `pnpm build` and then `pnpm inject`.
+```bat
+cd /d "%APPDATA%\Vencord\Vencord"
+pnpm install --frozen-lockfile
+pnpm build
+pnpm inject
+```
+
 4. Restart Discord and enable **ProfileSets** in Vencord's Plugins page.
 
-Vencord's official custom-plugin guide is available at <https://docs.vencord.dev/installing/custom-plugins/>.
+If Vencord is installed elsewhere, replace the first path. See Vencord's [custom-plugin guide](https://docs.vencord.dev/installing/custom-plugins/).
 
-## Update resilience
+## Verification
 
-The visible page uses Vencord's settings registration and standard Vencord components. The only Discord internals used are the profile stores and the existing `USER_PROFILE_SETTINGS_SET_PENDING_CHANGES` action. If Discord changes those data APIs in the future, the Profile Sets page will remain reachable and failures surface as an error toast instead of silently removing the entire UI.
+The package is tested from an extracted ZIP against Vencord 1.15.5 commit `0850f37fbb1623aa6330764d8f4b1e0b2617dcdf`. Tests cover storage recovery, display-name-style saving/applying/copying, existing save/apply behavior, server-copy isolation, the original desktop/mobile layout, TypeScript, desktop/web builds, current logged-out Discord profile modules, archive paths, CRC and checksums.
 
-See [TECHNICAL_NOTES.md](./TECHNICAL_NOTES.md) for the failure analysis, field mapping, compatibility boundaries and verification procedure.
+Generated reports and screenshots are inside `test-results/`. Details and test limits are in [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md).
