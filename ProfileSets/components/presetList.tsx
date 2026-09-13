@@ -4,114 +4,229 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { ContextMenuApi, Menu, Modal, openModal, React, showToast, Toasts } from "@webpack/common";
+import { classes } from "@utils/misc";
+import { ContextMenuApi, Menu, openModal, React, showToast, TextInput, Toasts } from "@webpack/common";
 
-import { cl } from "../index";
+import { cl } from "..";
 import { deletePreset, movePreset, renamePreset, updatePresetFromCurrent } from "../utils/actions";
-import { assertScope, getScope, type PresetScope, type PresetSection, type ProfilePresetEx } from "../utils/storage";
+import { PresetSection, type ProfilePresetEx } from "../utils/storage";
 import { ConfirmModal } from "./confirmModal";
-import { DraftEditor } from "./draftEditor";
 
-type Props = {
+interface PresetListProps {
     presets: ProfilePresetEx[];
     allPresets: ProfilePresetEx[];
     avatarSize: number;
-    selectedId?: string;
-    disabled: boolean;
-    onLoad: (preset: ProfilePresetEx) => Promise<void>;
+    selectedPreset: number;
+    onLoad: (index: number) => void | Promise<void>;
+    onUpdate: () => void;
     guildId?: string;
     isGuildProfile: boolean;
     section: PresetSection;
-};
-const dates = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
-function report(error: unknown) {
-    showToast(error instanceof Error ? error.message : "Could not update this saved profile.", Toasts.Type.FAILURE);
-}
-function RenameModal({ preset, section, scope, ...props }: { preset: ProfilePresetEx; section: PresetSection; scope: PresetScope; onClose: () => void; transitionState: number; }) {
-    const [name, setName] = React.useState(preset.name);
-    const [busy, setBusy] = React.useState(false);
-    const busyRef = React.useRef(false);
-    const id = React.useId();
-    const save = async () => {
-        if (busyRef.current || !name.trim()) return;
-        busyRef.current = true;
-        setBusy(true);
-        try { assertScope(scope); await renamePreset(preset.id!, name, section); props.onClose(); }
-        catch (error) { report(error); }
-        finally { busyRef.current = false; setBusy(false); }
-    };
-    return <Modal {...props} title="Rename Profile" size="sm" actions={[
-        { text: "Save", variant: "primary", disabled: busy || !name.trim(), onClick: () => void save() },
-        { text: "Cancel", variant: "secondary", disabled: busy, onClick: props.onClose }
-    ]}>
-        <label className={cl("field")} htmlFor={id}><span>Profile name</span>
-            <input id={id} autoFocus maxLength={100} value={name} disabled={busy} onChange={e => setName(e.target.value)} onKeyDown={e => {
-                if (e.key === "Enter") { e.preventDefault(); void save(); }
-            }} />
-        </label>
-    </Modal>;
+    currentPage: number;
+    onPageChange: (page: number) => void;
 }
 
-export function PresetList({ presets, allPresets, avatarSize, selectedId, disabled, onLoad, guildId, isGuildProfile, section }: Props) {
-    const [workingId, setWorkingId] = React.useState<string>();
-    const workingRef = React.useRef(false);
-    const run = async (preset: ProfilePresetEx, operation: () => Promise<unknown>) => {
-        if (workingRef.current || disabled) return;
-        workingRef.current = true;
-        setWorkingId(preset.id);
-        try { await operation(); }
-        catch (error) { report(error); }
-        finally { workingRef.current = false; setWorkingId(undefined); }
-    };
-    const positions = React.useMemo(() => new Map(allPresets.map((preset, index) => [preset.id, index])), [allPresets]);
-    return <div className={cl("list-container")}>
-        {presets.map(preset => {
-            const index = positions.get(preset.id) ?? 0;
-            const selected = selectedId === preset.id;
-            const locked = disabled || workingId != null;
-            return <article key={preset.id} className={cl("card") + (selected ? " selected" : "")}>
-                <button type="button" className={cl("card-apply")} disabled={locked} onClick={() => void onLoad(preset)}
-                    aria-label={`Apply ${preset.name}`} aria-pressed={selected}>
-                    <div className={cl("card-content")}>
-                        {preset.avatarDataUrl ? <img src={preset.avatarDataUrl} alt="" className={cl("avatar")} width={avatarSize} height={avatarSize} loading="lazy" decoding="async" />
-                            : <div className={cl("avatar", "avatar-placeholder")} style={{ width: avatarSize, height: avatarSize }}>◎</div>}
-                        <div className={cl("card-copy")}>
-                            <strong className={cl("name")} title={preset.name}>{preset.name}</strong>
-                            <span className={cl("timestamp")}>{dates.format(new Date(preset.timestamp))}</span>
-                            {selected && <span className={cl("apply-label")}>Loaded</span>}
+export function PresetList({
+    presets,
+    allPresets,
+    avatarSize,
+    selectedPreset,
+    onLoad,
+    onUpdate,
+    guildId,
+    isGuildProfile,
+    section,
+    currentPage,
+    onPageChange
+}: PresetListProps) {
+    const [renaming, setRenaming] = React.useState<number>(-1);
+    const [renameText, setRenameText] = React.useState("");
+
+    return (
+        <div className={cl("list-container")}>
+            {presets.map(preset => {
+                const actualIndex = allPresets.indexOf(preset);
+                const isRenaming = renaming === actualIndex;
+                const isSelected = !isRenaming && selectedPreset === actualIndex;
+                const date = new Date(preset.timestamp);
+                const formattedDate = date.toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric"
+                });
+                const formattedTime = date.toLocaleTimeString(undefined, {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                });
+
+                const commitRename = () => {
+                    const nextName = renameText.trim();
+                    if (!nextName) return;
+                    renamePreset(actualIndex, nextName, section, guildId);
+                    onUpdate();
+                };
+
+                const showMoveOptions = actualIndex > 0 || actualIndex < allPresets.length - 1 || currentPage > 1;
+
+                return (
+                    <div
+                        key={actualIndex}
+                        tabIndex={isRenaming ? -1 : 0}
+                        role="button"
+                        onClick={() => {
+                            if (!isRenaming) {
+                                onLoad(actualIndex);
+                            }
+                        }}
+                        onKeyDown={e => {
+                            if (!isRenaming && (e.key === "Enter" || e.key === " ")) {
+                                e.preventDefault();
+                                onLoad(actualIndex);
+                            }
+                        }}
+                        className={classes(cl("row"), isSelected ? "selected" : "")}
+                    >
+                        <div className={cl("avatar-url")}>
+                            {preset.avatarDataUrl && (
+                                <img
+                                    src={preset.avatarDataUrl}
+                                    alt=""
+                                    className={cl("avatar")}
+                                    style={{ width: `${avatarSize}px`, height: `${avatarSize}px` }}
+                                />
+                            )}
+                            <div className={cl("rename")}>
+                                {isRenaming ? (
+                                    <TextInput
+                                        value={renameText}
+                                        onChange={setRenameText}
+                                        onBlur={() => {
+                                            commitRename();
+                                            setRenaming(-1);
+                                        }}
+                                        onKeyDown={e => {
+                                            if (e.key === "Enter") {
+                                                commitRename();
+                                                setRenaming(-1);
+                                            } else if (e.key === "Escape") {
+                                                setRenaming(-1);
+                                            }
+                                            e.stopPropagation();
+                                        }}
+                                        onClick={e => e.stopPropagation()}
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <>
+                                        <div className={cl("name")}>
+                                            {preset.name}
+                                        </div>
+                                        <div className={cl("timestamp")}>
+                                            {formattedDate} at {formattedTime}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                        <div className={cl("updated")}>
+                            <button
+                                type="button"
+                                className={cl("menu-icon")}
+                                aria-label={`Actions for ${preset.name}`}
+                                onClick={e => {
+                                    e.stopPropagation();
+                                    ContextMenuApi.openContextMenu(e, () => (
+                                        <Menu.Menu navId="preset-options" onClose={ContextMenuApi.closeContextMenu}>
+                                            <Menu.MenuItem
+                                                id="rename"
+                                                label="Rename"
+                                                action={() => {
+                                                    setRenaming(actualIndex);
+                                                    setRenameText(preset.name);
+                                                }}
+                                            />
+                                            <Menu.MenuItem
+                                                id="update"
+                                                label="Update"
+                                                action={async () => {
+                                                    try {
+                                                        await updatePresetFromCurrent(actualIndex, section, guildId, { isGuildProfile });
+                                                        onUpdate();
+                                                        showToast(`Updated “${preset.name}”.`, Toasts.Type.SUCCESS);
+                                                    } catch (error) {
+                                                        console.error("[ProfileSets] Failed to update profile set", error);
+                                                        showToast("Could not update this profile set.", Toasts.Type.FAILURE);
+                                                    }
+                                                }}
+                                            />
+                                            {showMoveOptions && <Menu.MenuSeparator />}
+                                            {actualIndex > 0 && (
+                                                <Menu.MenuItem
+                                                    id="move-up"
+                                                    label="Move Up"
+                                                    action={() => {
+                                                        movePreset(actualIndex, actualIndex - 1, section, guildId);
+                                                        onUpdate();
+                                                    }}
+                                                />
+                                            )}
+                                            {actualIndex < allPresets.length - 1 && (
+                                                <Menu.MenuItem
+                                                    id="move-down"
+                                                    label="Move Down"
+                                                    action={() => {
+                                                        movePreset(actualIndex, actualIndex + 1, section, guildId);
+                                                        onUpdate();
+                                                    }}
+                                                />
+                                            )}
+                                            {currentPage > 1 && (
+                                                <Menu.MenuItem
+                                                    id="move-to-page-1"
+                                                    label="Move to Page 1"
+                                                    action={() => {
+                                                        movePreset(actualIndex, 0, section, guildId);
+                                                        onPageChange(1);
+                                                        onUpdate();
+                                                    }}
+                                                />
+                                            )}
+                                            <Menu.MenuSeparator />
+                                            <Menu.MenuItem
+                                                id="delete"
+                                                label="Delete"
+                                                color="danger"
+                                                action={() => {
+                                                    openModal(props => (
+                                                        <ConfirmModal
+                                                            {...props}
+                                                            title="Delete Profile Set?"
+                                                            message={`Delete “${preset.name}”? This cannot be undone.`}
+                                                            confirmText="Delete"
+                                                            cancelText="Cancel"
+                                                            onConfirm={() => {
+                                                                void deletePreset(actualIndex, section, guildId).then(onUpdate);
+                                                            }}
+                                                            onCancel={() => { }}
+                                                        />
+                                                    ));
+                                                }}
+                                            />
+                                        </Menu.Menu>
+                                    ));
+                                }}
+                            >
+                                <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                                    <path
+                                        fill="currentColor"
+                                        d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0 5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0 5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"
+                                    />
+                                </svg>
+                            </button>
                         </div>
                     </div>
-                </button>
-                <button type="button" className={cl("menu-icon", "card-menu")} disabled={locked} aria-label={`Actions for ${preset.name}`}
-                    onClick={e => {
-                        const scope = getScope(section);
-                        ContextMenuApi.openContextMenu(e, () => <Menu.Menu navId="profile-sets-actions" onClose={ContextMenuApi.closeContextMenu}>
-                            <Menu.MenuItem id="edit" label="Edit Saved Profile" action={() => {
-                                try { assertScope(scope); openModal(props => <DraftEditor {...props} initial={preset} scope={scope} guildId={guildId} isGuildProfile={isGuildProfile} />); }
-                                catch (error) { report(error); }
-                            }} />
-                            <Menu.MenuItem id="rename" label="Rename" action={() => openModal(props => <RenameModal {...props} preset={preset} section={section} scope={scope} />)} />
-                            <Menu.MenuItem id="update" label="Replace with Current Profile" action={() => openModal(props => <ConfirmModal {...props}
-                                title="Replace Saved Profile?" message={`Replace “${preset.name}” with the current profile, including pending edits?`}
-                                confirmText="Replace" cancelText="Cancel" onCancel={() => {}} onConfirm={() => void run(preset, async () => {
-                                    assertScope(scope);
-                                    await updatePresetFromCurrent(preset.id!, section, guildId, { isGuildProfile });
-                                    showToast("Saved profile updated.", Toasts.Type.SUCCESS);
-                                })} />)} />
-                            <Menu.MenuSeparator />
-                            {index > 0 && <Menu.MenuItem id="move-up" label="Move Up" action={() => void run(preset, async () => { assertScope(scope); await movePreset(preset.id!, -1, section); })} />}
-                            {index < allPresets.length - 1 && <Menu.MenuItem id="move-down" label="Move Down" action={() => void run(preset, async () => { assertScope(scope); await movePreset(preset.id!, 1, section); })} />}
-                            {index > 0 && <Menu.MenuItem id="move-first" label="Move to First" action={() => void run(preset, async () => { assertScope(scope); await movePreset(preset.id!, "first", section); })} />}
-                            <Menu.MenuItem id="delete" label="Delete" color="danger" action={() => openModal(props => <ConfirmModal {...props}
-                                title="Delete Profile?" message={`Delete “${preset.name}”? Your active Discord profile will stay as it is.`}
-                                confirmText="Delete" cancelText="Cancel" onCancel={() => {}} onConfirm={() => void run(preset, async () => {
-                                    assertScope(scope); await deletePreset(preset.id!, section);
-                                })} />)} />
-                        </Menu.Menu>);
-                    }}>
-                    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path fill="currentColor" d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0 5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0 5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z" /></svg>
-                </button>
-            </article>;
-        })}
-    </div>;
+                );
+            })}
+        </div>
+    );
 }

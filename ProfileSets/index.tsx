@@ -14,8 +14,7 @@ import { removeFromArray } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { SettingsRouter } from "@webpack/common";
 
-import { clearImageCache } from "./utils/images";
-import { clearStorageSession } from "./utils/storage";
+import { loadPresets } from "./utils/storage";
 
 export const cl = classNameFactory("vc-profile-presets-");
 const SETTINGS_ENTRY_KEY = "profile_sets";
@@ -53,6 +52,8 @@ export default definePlugin({
     },
 
     start() {
+        void loadPresets("main");
+
         if (!SettingsPlugin.customEntries.some(entry => entry.key === SETTINGS_ENTRY_KEY)) {
             SettingsPlugin.customEntries.push({
                 key: SETTINGS_ENTRY_KEY,
@@ -64,8 +65,6 @@ export default definePlugin({
     },
 
     stop() {
-        clearStorageSession();
-        clearImageCache();
         removeFromArray(SettingsPlugin.customEntries, entry => entry.key === SETTINGS_ENTRY_KEY);
     }
 });

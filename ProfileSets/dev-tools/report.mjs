@@ -4,7 +4,7 @@ import { resultsDir } from "./paths.mjs";
 const regression = JSON.parse(await readFile(join(resultsDir, "regression.json"), "utf8"));
 const ui = JSON.parse(await readFile(join(resultsDir, "ui.json"), "utf8"));
 const discord = JSON.parse(await readFile(join(resultsDir, "discord-compatibility.json"), "utf8"));
-if (regression.passed !== regression.total || ui.passed !== 8 || ui.browserErrors.length || !discord.pendingStore || !discord.pendingAction || !discord.imageObjectFieldsPresent || Object.values(discord.fields).some(value => !value)) throw new Error("Verification did not pass");
+if (regression.passed !== 20 || regression.passed !== regression.total || ui.passed !== 5 || ui.browserErrors.length || !discord.pendingStore || !discord.pendingAction || !discord.imageObjectFieldsPresent || Object.values(discord.fields).some(value => !value)) throw new Error("Verification did not pass");
 const report = {
     checkedAt: new Date().toISOString(),
     sourceCommit: process.env.GITHUB_SHA ?? "local working copy",

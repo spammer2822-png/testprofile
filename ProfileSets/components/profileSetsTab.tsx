@@ -16,11 +16,10 @@ import {
     SearchableSelect,
     SelectedGuildStore,
     SettingsRouter,
-    UserStore,
     useStateFromStores
 } from "@webpack/common";
 
-import { cl, settings } from "../index";
+import { cl } from "../index";
 import { PresetSection } from "../utils/storage";
 import { PresetManager } from "./presetManager";
 
@@ -51,10 +50,6 @@ const useOpenProfileSettings = resolveOpenProfileSettingsHook();
 
 function ProfileSetsTab() {
     const [section, setSection] = React.useState<PresetSection>("main");
-    const [busy, setBusy] = React.useState(false);
-    const userId = useStateFromStores([UserStore], () => UserStore.getCurrentUser()?.id);
-    const { useBasePresetsForServerProfiles } = settings.use(["useBasePresetsForServerProfiles"]);
-    const storageSection = section === "server" && useBasePresetsForServerProfiles ? "main" : section;
     const guilds = useStateFromStores([GuildStore], () => GuildStore.getGuildsArray());
     const lastSelectedGuildId = useStateFromStores(
         [SelectedGuildStore],
@@ -74,7 +69,7 @@ function ProfileSetsTab() {
 
     React.useEffect(() => {
         if (guildOptions.some(option => option.value === guildId)) return;
-        setGuildId(guildOptions.some(option => option.value === lastSelectedGuildId) ? lastSelectedGuildId ?? undefined : guildOptions[0]?.value);
+        setGuildId(lastSelectedGuildId ?? guildOptions[0]?.value);
     }, [guildId, guildOptions, lastSelectedGuildId]);
 
     const selectedGuild = section === "server" && guildId
@@ -101,14 +96,14 @@ function ProfileSetsTab() {
                 <div>
                     <HeadingPrimary className={cl("tab-heading")}>Profile Sets</HeadingPrimary>
                     <p className={cl("tab-description")}>
-                        Save and load main or server profiles. Review changes in Discord before saving them.
+                        Save a complete profile, load it as pending changes, then review it in Discord&apos;s profile editor.
                     </p>
                 </div>
                 <Button
                     size="small"
                     variant="secondary"
                     onClick={openProfileEditor}
-                    disabled={busy || (section === "server" && !guildId)}
+                    disabled={section === "server" && !guildId}
                 >
                     Open Profile Editor
                 </Button>
@@ -119,7 +114,6 @@ function ProfileSetsTab() {
                     <Button
                         size="small"
                         variant={section === "main" ? "primary" : "secondary"}
-                        disabled={busy}
                         aria-pressed={section === "main"}
                         onClick={() => setSection("main")}
                     >
@@ -128,7 +122,6 @@ function ProfileSetsTab() {
                     <Button
                         size="small"
                         variant={section === "server" ? "primary" : "secondary"}
-                        disabled={busy}
                         aria-pressed={section === "server"}
                         onClick={() => setSection("server")}
                     >
@@ -137,17 +130,16 @@ function ProfileSetsTab() {
                 </div>
 
                 {section === "server" && (
-                    <div className={cl("guild-picker")} role="group" aria-labelledby="profile-sets-server-label">
-                        <div className={cl("field-label")} id="profile-sets-server-label">Server</div>
+                    <div className={cl("guild-picker")}>
+                        <label className={cl("field-label")}>Server</label>
                         <SearchableSelect
-                            isDisabled={busy}
                             options={guildOptions}
                             value={guildId}
                             placeholder="Select a server"
                             clearable={false}
                             closeOnSelect={true}
                             onChange={value => {
-                                if (!busy && typeof value === "string") setGuildId(value);
+                                if (typeof value === "string") setGuildId(value);
                             }}
                         />
                     </div>
@@ -160,10 +152,7 @@ function ProfileSetsTab() {
                 </div>
             ) : (
                 <PresetManager
-                    key={`${userId}:${section}:${guildId}:${storageSection}`}
                     section={section}
-                    storageSection={storageSection}
-                    onBusyChange={setBusy}
                     guildId={section === "server" ? guildId : undefined}
                     onOpenProfileEditor={openProfileEditor}
                 />

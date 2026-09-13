@@ -1,23 +1,38 @@
-# ProfileSets
+# Profile Sets
 
-Save, create and load Discord profile presets from **User Settings → Vencord Settings → Profile Sets**.
+This is the original ProfileSets interface with one added control: **Copy Main Profile to Server**.
 
-## What changed
+There is no Add New Profile screen or replacement layout. Saving, searching, importing, exporting, renaming, moving and applying profiles work through the original controls.
 
-- **Add New Profile** opens a separate draft. Set its name, images, text and colours, then save it. Your active profile and Discord's pending edits are unchanged. Apply the saved profile separately later.
-- **Copy Main Profile to Server** appears under Server Profile. Choose the server and click the button. It copies the current main layout into that server's pending changes. Use **Review Profile**, then Discord's **Save Changes**.
-- **Edit Saved Profile** is available from a saved profile's three-dot menu. It edits the stored preset without applying it.
-- The original compact avatar/name rows, simple controls and five profiles per page are retained. Search, random selection, rename, move, update and import/export are supported.
+## Recovering existing saved profiles
 
-Copying excludes unsaved main edits, custom status and the main server tag. Main display name maps to server nickname. Discord still checks Nitro, permissions and access to cosmetics.
+The previous test build could show **0 saved profiles** when one older saved image did not match its new strict validator. That error hid the entire collection from the page. It did not intentionally delete the collection.
 
-Applying a main preset's **custom status updates it immediately**, as in the original plugin. The other fields stay pending until you use Discord's Save Changes. Saving or editing a draft never updates the status.
+This build removes that whole-collection validator and reads the original storage locations:
 
-## Installation — existing Vencord source checkout
+- `ProfilePresets_v2_Main:<account id>`
+- `ProfilePresets_v2_Server:<account id>`
+- the older unscoped `ProfilePresets_v2_Main` / `ProfilePresets_v2_Server` backups
+- `ProfileDataset:<account id>:main` and `ProfileDataset`
 
-1. Extract the ZIP. Its only top-level entry is **ProfileSets/**.
-2. Replace the old plugin folder with this complete folder at **src/userplugins/profileSets** in your Vencord checkout. Keep one copy of the plugin. The folder must directly contain **index.tsx**; avoid nesting ProfileSets inside another profileSets folder.
-3. Open CMD in your Vencord source checkout and run:
+The account-specific collection is read unchanged, including its older image values. If its key is missing, ProfileSets can recover an older backup; backup keys are kept instead of deleted. An intentionally empty collection stays empty. An unscoped backup is associated with the first account that recovers it.
+
+Install this build and open **User Settings → Vencord Settings → Profile Sets**. Your earlier profiles should return automatically if their data is still in Vencord's DataStore. Export them once they appear so you also have a separate JSON backup.
+
+## Copy main profile to a server
+
+1. Select **Server Profile**.
+2. Choose the server.
+3. Select **Copy Main Profile to Server**.
+4. Select **Review Profile**, check the pending changes, then use Discord's **Save Changes** button.
+
+The operation reads the saved main profile from Discord, including its display-name font, effect and colours, while ignoring unsaved main-profile edits. It stages the layout only for the selected server. It does not change the main pending profile, custom status, primary-server tag or the saved-profile collection.
+
+## Installation on Windows
+
+1. Extract the ZIP. Its only top-level item is `ProfileSets/`.
+2. Move the entire previous `src\userplugins\profileSets` folder to a backup location outside `src\userplugins`, then put the extracted folder at `src\userplugins\profileSets`. Replace the folder as a whole: merging files would leave the removed draft editor behind and can break the build. `index.tsx` must be directly inside the replacement folder. Do not clear Discord/Vencord's application data; the saved profiles live there, separately from these plugin files.
+3. Open CMD and run:
 
 ```bat
 cd /d "%APPDATA%\Vencord\Vencord"
@@ -26,28 +41,12 @@ pnpm build
 pnpm inject
 ```
 
-4. Restart Discord and enable **ProfileSets** under Vencord Plugins.
+4. Restart Discord and enable **ProfileSets** in Vencord's Plugins page.
 
-If your Vencord checkout is elsewhere, use that path in the first command. This ZIP is a custom plugin's source code; it needs a Vencord source build. See the [official installation guide](https://docs.vencord.dev/installing/custom-plugins/).
-
-Existing saved presets use the same per-account storage keys. Updating the plugin files does not delete them.
-
-## Folder contents
-
-- **index.tsx**, **components/**, **utils/**, **styles.css** — the plugin.
-- **dev-tools/** — regression/browser tests, the packaging checker and the CI workflow template.
-- **test-results/** — generated verification results and screenshots in the final tested distribution.
-- **MANIFEST.sha256** — checksums for the files in the archive.
-- **LICENSE**, **FIX_NOTES.md**, **TECHNICAL_NOTES.md** — licence and supporting notes.
-
-The test tools are separate from the runtime module imports. You do not need to run them to use the plugin.
+If Vencord is installed elsewhere, replace the first path. See Vencord's [custom-plugin guide](https://docs.vencord.dev/installing/custom-plugins/).
 
 ## Verification
 
-The release workflow creates a ZIP, extracts it, then runs regression and browser checks using that extracted code. It copies the extracted folder into Vencord for desktop/web builds and full TypeScript checking. The final ZIP is then extracted again and every file is compared byte-for-byte, with runtime import and local documentation links checked.
+The package is tested from an extracted ZIP against Vencord 1.15.5 commit `0850f37fbb1623aa6330764d8f4b1e0b2617dcdf`. Tests cover storage recovery, display-name-style saving/applying/copying, existing save/apply behavior, server-copy isolation, the original desktop/mobile layout, TypeScript, desktop/web builds, current logged-out Discord profile modules, archive paths, CRC and checksums.
 
-Vencord is pinned to **1.15.5**, commit **0850f37fbb1623aa6330764d8f4b1e0b2617dcdf**. The Discord Stable probe records the live web build hash. See the included test-results for the run's actual results.
-
-Browser tests use the real plugin components with mocked Discord services and a test modal shell. The live Discord probe inspects modules while logged out. Authenticated profile submission, account-specific entitlements and every Discord experiment still require a real account check.
-
-See [technical notes](TECHNICAL_NOTES.md) for details and test commands.
+Generated reports and screenshots are inside `test-results/`. Details and test limits are in [TECHNICAL_NOTES.md](TECHNICAL_NOTES.md).

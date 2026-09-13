@@ -22,7 +22,7 @@ try {
         const store = w.findStore("UserProfileSettingsStore");
         const modules = Object.values(w.wreq.m).map(fn => String(fn));
         const source = modules.filter(code => code.includes("USER_PROFILE_SETTINGS_SET_PENDING_CHANGES"));
-        const keys = ["pendingAvatar", "pendingBanner", "pendingBio", "pendingPronouns", "pendingNickname", "pendingGlobalName"];
+        const keys = ["pendingAvatar", "pendingBanner", "pendingBio", "pendingPronouns", "pendingNickname", "pendingGlobalName", "pendingDisplayNameStyles"];
         const matches = Object.fromEntries(keys.map(key => [key, source.some(code => code.includes(key))]));
         return {
             checkedAt: new Date().toISOString(),

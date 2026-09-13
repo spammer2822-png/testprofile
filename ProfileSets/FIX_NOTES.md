@@ -1,16 +1,10 @@
-# Changes and fixes
+# ProfileSets recovery and server-copy fix
 
-- Added Copy Main Profile to Server and isolated Add New Profile / Edit Saved Profile.
-- Kept the original compact list style and five profiles per page; simplified the earlier redesign.
-- Added the UserSettingsAPI dependency required by current Vencord.
-- Fixed failed storage writes reporting success, lost concurrent writes and stale account/collection operations.
-- Preserved avatar/banner removals, GIF bytes and profile effect IDs even when metadata is incomplete.
-- Rejected failed/non-image downloads before staging profile changes.
-- Added parallel image loading, bounded caching, persistent search and lazy thumbnails.
-- Fixed keyboard menu activation accidentally applying a preset.
-- Validated imports, handled cancellation and assigned unique preset IDs.
-- Retained legacy backups while preventing unscoped data migration into multiple accounts.
-- Moved development files, references and generated results inside the single ProfileSets package.
-- Added archive creation, extraction, byte-comparison, path and manifest checks.
+- Restored the original interface, components, spacing, saved-profile rows and controls.
+- Removed Add New Profile, its draft editor, the replacement card layout and the strict image validator.
+- Restored permissive loading so one older image value cannot hide the whole saved collection.
+- Added fallback recovery from original scoped and unscoped storage keys without deleting backups.
+- Added one small **Copy Main Profile to Server** button to the original server-profile controls.
+- Kept the current avatar/banner pending-state fix and Vencord API dependency declaration.
 
-See README.md for installation and TECHNICAL_NOTES.md for test coverage and limits.
+See [README.md](README.md) for installation and recovery steps.

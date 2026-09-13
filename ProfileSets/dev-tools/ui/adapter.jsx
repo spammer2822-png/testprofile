@@ -4,7 +4,14 @@ export { React };
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6L68AAAAASUVORK5CYII=";
 export const cl = (...names) => names.map(name => "vc-profile-presets-" + name).join(" ");
-export const settings = { use: () => ({ avatarSize: 64, useBasePresetsForServerProfiles: false }) };
+export const classes = (...names) => names.filter(Boolean).join(" ");
+export const isNonNullish = value => value != null;
+export class Logger { error(...args) { console.error(...args); } }
+export const fetchUserProfile = async () => {};
+export const settings = {
+    use: () => ({ useBasePresetsForServerProfiles: false }),
+    store: { avatarSize: 56 }
+};
 const data = new Map([["ProfilePresets_v2_Main:100", Array.from({ length: 8 }, (_, index) => ({
     id: "fixture-" + index, name: ["Everyday", "After hours", "Summer", "Study mode", "Blue skies", "Minimal", "Weekend", "Games"][index],
     timestamp: 1789250000000, avatarDataUrl: PNG, bannerDataUrl: null, accentColor: [0x5865f2, 0x864fd1, 0xd6a353, 0x327b74][index % 4], bio: "Saved profile " + index
@@ -16,10 +23,16 @@ export const DataStore = {
     get: async key => structuredClone(data.get(key)),
     set: async (key, value) => { if (state.failWrites) throw new Error("disk full"); data.set(key, structuredClone(value)); }
 };
-export const UserStore = { getCurrentUser: () => ({ id: "100", username: "Dariusz", globalName: "Dariusz", avatar: null }) };
+export const UserStore = { getCurrentUser: () => ({
+    id: "100", username: "Dariusz", globalName: "Dariusz", avatar: null,
+    displayNameStyles: { colors: [0x5865f2, 0x9b59b6], effect_id: 2, font_id: 3 }
+}) };
 const base = { bio: "Current main bio", pronouns: "he/him", banner: null, accentColor: 0x5865f2, themeColors: [0x5865f2, 0x232428] };
 export const UserProfileStore = { getUserProfile: () => base, getGuildMemberProfile: () => ({ bio: "Server bio", banner: null }) };
-export const GuildMemberStore = { getMember: () => ({ nick: "Server nickname", avatar: null }) };
+export const GuildMemberStore = { getMember: () => ({
+    nick: "Server nickname", avatar: null,
+    displayNameStyles: { colors: [0x111111, 0x222222], effect_id: 0, font_id: 0 }
+}) };
 const guilds = [{ id: "999", name: "Friends" }, { id: "888", name: "Study Group" }];
 export const GuildStore = { getGuildsArray: () => guilds, getGuild: id => guilds.find(g => g.id === id) };
 export const SelectedGuildStore = { getGuildId: () => "999", getLastSelectedGuildId: () => "999" };
@@ -41,6 +54,7 @@ export const mapMangledModule = () => ({ useOpenProfileSettings: null });
 export const SettingsRouter = { openUserSettings: () => {} };
 export const Toasts = { Type: { FAILURE: 1, SUCCESS: 2 } };
 export const showToast = (message, type) => { state.toasts.push({ message, type }); };
+export const TextInput = ({ onChange, ...props }) => <input {...props} onChange={event => onChange(event.target.value)} />;
 export const Heading = ({ tag = "h3", ...props }) => React.createElement(tag, props);
 export const HeadingPrimary = props => <h1 {...props} />;
 export const Paragraph = props => <p {...props} />;

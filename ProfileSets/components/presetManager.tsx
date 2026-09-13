@@ -6,174 +6,385 @@
 
 import { Button } from "@components/Button";
 import { Heading } from "@components/Heading";
-import { openModal, React, showToast, Toasts } from "@webpack/common";
+import { classes } from "@utils/misc";
+import { openModal, React, SelectedGuildStore, showToast, TextInput, Toasts, useStateFromStores } from "@webpack/common";
 
 import { cl, settings } from "../index";
-import { exportPresets, type ImportDecision, importPresets, savePreset } from "../utils/actions";
+import { exportPresets, ImportDecision, importPresets, savePreset } from "../utils/actions";
 import { copyMainProfileToServer, loadPresetAsPending } from "../utils/profile";
-import { assertScope, getScope, getSnapshot, loadPresets, type PresetSection, type ProfilePresetEx, subscribe } from "../utils/storage";
+import { currentPresetIndex, loadError, loadPresets, presets, PresetSection, setCurrentPresetIndex } from "../utils/storage";
 import { ImportProfilesModal } from "./confirmModal";
-import { DraftEditor } from "./draftEditor";
 import { PresetList } from "./presetList";
 
-const PAGE_SIZE = 5;
-type Props = {
-    section: PresetSection;
-    storageSection: PresetSection;
+const PRESETS_PER_PAGE = 5;
+
+type PresetManagerProps = {
+    section?: PresetSection;
     guildId?: string;
-    onOpenProfileEditor: () => void;
-    onBusyChange: (busy: boolean) => void;
+    onOpenProfileEditor?: () => void;
 };
 
-export function PresetManager({ section, storageSection, guildId, onOpenProfileEditor, onBusyChange }: Props) {
-    const { presets, loading, error } = React.useSyncExternalStore(subscribe, getSnapshot);
+export function PresetManager({ section, guildId, onOpenProfileEditor }: PresetManagerProps) {
     const [presetName, setPresetName] = React.useState("");
-    const [search, setSearch] = React.useState("");
-    const [page, setPage] = React.useState(1);
-    const [busy, setBusy] = React.useState(false);
-    const [selectedId, setSelectedId] = React.useState<string>();
-    const [notice, setNotice] = React.useState("");
-    const { avatarSize } = settings.use(["avatarSize"]);
-    const busyRef = React.useRef(false);
-    const mounted = React.useRef(true);
-    const lastRandomId = React.useRef<string | undefined>(undefined);
-    const fileInput = React.useRef<HTMLInputElement>(null);
-    const id = React.useId();
-    const isGuildProfile = section === "server";
+    const [searchQuery, setSearchQuery] = React.useState("");
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+    const [isSaving, setIsSaving] = React.useState(false);
+    const [isApplying, setIsApplying] = React.useState(false);
+    const [isCopying, setIsCopying] = React.useState(false);
+    const [copiedMainProfile, setCopiedMainProfile] = React.useState(false);
+    const [currentPage, setCurrentPage] = React.useState(1);
+    const [pageInput, setPageInput] = React.useState("1");
+    const [selectedPreset, setSelectedPreset] = React.useState<number>(-1);
+    const [searchMode, setSearchMode] = React.useState(false);
+    const lastRandomIndexRef = React.useRef<number>(-1);
+    const isApplyingRef = React.useRef(false);
+    const resolvedSection: PresetSection = section ?? "main";
+    const isServerSection = resolvedSection === "server";
+    const { useBasePresetsForServerProfiles } = settings.use(["useBasePresetsForServerProfiles"]);
+    const lastSelectedGuildId = useStateFromStores(
+        [SelectedGuildStore],
+        () => SelectedGuildStore.getLastSelectedGuildId() ?? SelectedGuildStore.getGuildId()
+    );
+    const resolvedGuildId = isServerSection ? (guildId ?? lastSelectedGuildId ?? undefined) : undefined;
+    const canUseGuild = !isServerSection || Boolean(resolvedGuildId);
+    const storageSection: PresetSection = isServerSection && useBasePresetsForServerProfiles
+        ? "main"
+        : resolvedSection;
+    const copyTarget = React.useRef<string | undefined>(undefined);
+    copyTarget.current = `${resolvedSection}:${resolvedGuildId}`;
+    React.useEffect(() => () => { copyTarget.current = undefined; }, []);
 
     React.useEffect(() => {
-        mounted.current = true;
-        void loadPresets(storageSection);
-        return () => { mounted.current = false; };
-    }, [storageSection]);
-
-    const ready = !loading && !error && (!isGuildProfile || Boolean(guildId));
-    const filtered = React.useMemo(() => {
-        const query = search.trim().toLocaleLowerCase();
-        return query ? presets.filter(preset => preset.name.toLocaleLowerCase().includes(query)) : presets;
-    }, [presets, search]);
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    const currentPage = Math.min(page, totalPages);
-    const visible = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-    React.useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
-
-    const run = async (action: (guard: () => void) => Promise<void>) => {
-        if (busyRef.current || !ready) return;
-        const scope = getScope(storageSection);
-        const guard = () => {
-            assertScope(scope);
-            if (!mounted.current) throw new Error("The profile view changed. Please try again.");
+        let isActive = true;
+        (async () => {
+            await loadPresets(storageSection);
+            if (!isActive) return;
+            setSelectedPreset(-1);
+            setCurrentPage(1);
+            setPageInput("1");
+            setPresetName("");
+            setSearchQuery("");
+            setSearchMode(false);
+            setCopiedMainProfile(false);
+            forceUpdate();
+        })();
+        return () => {
+            isActive = false;
         };
-        busyRef.current = true;
-        setBusy(true);
-        onBusyChange(true);
-        try { guard(); await action(guard); }
-        catch (err) {
-            showToast(err instanceof Error ? err.message : "Could not complete this profile action.", Toasts.Type.FAILURE);
-        } finally {
-            busyRef.current = false;
-            if (mounted.current) setBusy(false);
-            onBusyChange(false);
+    }, [resolvedGuildId, resolvedSection, storageSection]);
+
+    const filteredPresets = !searchMode
+        ? presets
+        : presets.filter(preset => preset.name.toLowerCase().includes(searchQuery.trim().toLowerCase()));
+
+    const totalPages = Math.max(1, Math.ceil(filteredPresets.length / PRESETS_PER_PAGE));
+    const startIndex = (currentPage - 1) * PRESETS_PER_PAGE;
+    const currentPresets = filteredPresets.slice(startIndex, startIndex + PRESETS_PER_PAGE);
+
+    React.useEffect(() => {
+        if (currentPage <= totalPages) return;
+        setCurrentPage(totalPages);
+        setPageInput(String(totalPages));
+    }, [currentPage, totalPages]);
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+            setPageInput(String(newPage));
         }
     };
-    const saveCurrent = () => run(async guard => {
-        const name = presetName.trim();
-        if (!name) return;
-        guard();
-        await savePreset(name, storageSection, guildId, { isGuildProfile });
-        guard();
-        setPresetName("");
-        setSearch("");
-        setPage(Math.ceil(getSnapshot().presets.length / PAGE_SIZE));
-        showToast(`Saved “${name}”.`, Toasts.Type.SUCCESS);
-    });
-    const apply = (preset: ProfilePresetEx) => run(async guard => {
-        const result = await loadPresetAsPending(preset, guildId, { isGuildProfile, guard });
-        guard();
-        setSelectedId(preset.id);
-        setNotice(result.statusChanged
-            ? "Profile changes are ready to review. Your custom status has been updated."
-            : result.fieldsChanged ? "Profile changes are ready to review." : "This layout already matches the current profile.");
-        showToast(`Loaded “${preset.name}”.`, Toasts.Type.SUCCESS);
-    });
-    const promptImport = (count: number) => new Promise<ImportDecision>(resolve => {
-        openModal(props => <ImportProfilesModal {...props} title="Import Profiles"
-            message={`You have ${count} saved profiles. Merge the imported profiles, or replace this collection?`}
-            onOverride={() => resolve("override")} onMerge={() => resolve("merge")} onCancel={() => resolve("cancel")} />,
-        { onCloseCallback: () => resolve("cancel") });
-    });
 
-    return <section className={cl("section")} aria-busy={busy || loading}>
-        <div className={cl("section-heading-row")}>
-            <Heading tag="h3" className={cl("heading")}>Saved Profiles</Heading>
-            <span className={cl("count")}>{presets.length}</span>
-            <Button type="button" size="small" className={cl("add-button")} disabled={!ready || busy} onClick={() => {
-                const scope = getScope(storageSection);
-                openModal(props => <DraftEditor {...props} scope={scope} guildId={guildId} isGuildProfile={isGuildProfile}
-                    onSaved={() => { setSearch(""); setPage(Math.ceil(getSnapshot().presets.length / PAGE_SIZE)); }} />);
-            }}>+ Add New Profile</Button>
+    const handleSavePreset = async () => {
+        if (!canUseGuild) return;
+        const trimmedName = presetName.trim();
+        if (!trimmedName) return;
+        setIsSaving(true);
+        try {
+            await savePreset(trimmedName, storageSection, resolvedGuildId, {
+                isGuildProfile: isServerSection
+            });
+            setPresetName("");
+            const newTotalPages = Math.max(1, Math.ceil(presets.length / PRESETS_PER_PAGE));
+            setCurrentPage(newTotalPages);
+            setPageInput(String(newTotalPages));
+            forceUpdate();
+            showToast(`Saved profile set “${trimmedName}”.`, Toasts.Type.SUCCESS);
+        } catch (error) {
+            console.error("[ProfileSets] Failed to save profile set", error);
+            showToast("Could not save this profile set.", Toasts.Type.FAILURE);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const applyPreset = async (index: number) => {
+        const preset = presets[index];
+        if (!preset || isApplyingRef.current) return;
+
+        isApplyingRef.current = true;
+        setIsApplying(true);
+        try {
+            await loadPresetAsPending(preset, resolvedGuildId, {
+                isGuildProfile: resolvedSection === "server"
+            });
+            setSelectedPreset(index);
+            setCopiedMainProfile(false);
+            setCurrentPresetIndex(index);
+            forceUpdate();
+            showToast(`Loaded “${preset.name}” as pending profile changes.`, Toasts.Type.SUCCESS);
+        } catch (error) {
+            console.error("[ProfileSets] Failed to load profile set", error);
+            showToast("Could not load this profile set.", Toasts.Type.FAILURE);
+        } finally {
+            isApplyingRef.current = false;
+            setIsApplying(false);
+        }
+    };
+
+    const handleLoadPreset = async (index: number) => {
+        if (!canUseGuild) return;
+        await applyPreset(index);
+    };
+
+    const handleRandomPreset = async () => {
+        if (!canUseGuild) return;
+        if (!presets.length) return;
+
+        let nextIndex = Math.floor(Math.random() * presets.length);
+        if (presets.length > 1 && nextIndex === lastRandomIndexRef.current) {
+            let attempts = 0;
+            while (attempts < 5 && nextIndex === lastRandomIndexRef.current) {
+                nextIndex = Math.floor(Math.random() * presets.length);
+                attempts++;
+            }
+        }
+        lastRandomIndexRef.current = nextIndex;
+        await applyPreset(nextIndex);
+    };
+
+    const handleCopyMainProfile = async () => {
+        if (!resolvedGuildId || isApplyingRef.current) return;
+        isApplyingRef.current = true;
+        setIsCopying(true);
+        try {
+            const target = copyTarget.current;
+            await copyMainProfileToServer(resolvedGuildId, () => {
+                if (copyTarget.current !== target) throw new Error("The selected server changed. Please try again.");
+            });
+            setSelectedPreset(-1);
+            setCurrentPresetIndex(-1);
+            setCopiedMainProfile(true);
+            showToast("Copied your main profile to this server's pending changes.", Toasts.Type.SUCCESS);
+        } catch (error) {
+            console.error("[ProfileSets] Failed to copy main profile", error);
+            showToast("Could not copy your main profile to this server.", Toasts.Type.FAILURE);
+        } finally {
+            isApplyingRef.current = false;
+            setIsCopying(false);
+        }
+    };
+
+    const showImportPrompt = (existingCount: number): Promise<ImportDecision> => {
+        return new Promise(resolve => {
+            openModal(props => (
+                <ImportProfilesModal
+                    {...props}
+                    title="Import Profiles"
+                    message={`You have ${existingCount} existing profiles in this section. Do you want to override them or merge with imported profiles?`}
+                    onOverride={() => resolve("override")}
+                    onMerge={() => resolve("merge")}
+                    onCancel={() => resolve("cancel")}
+                />
+            ));
+        });
+    };
+
+    const { avatarSize } = settings.store;
+    const hasPresets = presets.length > 0;
+    const shouldShowPagination = filteredPresets.length > PRESETS_PER_PAGE;
+
+    return (
+        <div className={classes(cl("section"), isServerSection ? cl("section-server") : "")} >
+            <div className={cl("section-heading-row")}>
+                <Heading tag="h3" className={cl("heading")}>
+                    Saved Profiles
+                </Heading>
+                <span className={cl("count")}>{presets.length}</span>
+            </div>
+
+            <div className={cl("text")}>
+                <TextInput
+                    placeholder={searchMode ? "Search profiles..." : "Profile Name"}
+                    value={searchMode ? searchQuery : presetName}
+                    onChange={searchMode
+                        ? value => {
+                            setSearchQuery(value);
+                            setCurrentPage(1);
+                            setPageInput("1");
+                        }
+                        : setPresetName}
+                    onKeyDown={event => {
+                        if (!searchMode && event.key === "Enter" && presetName.trim() && !isSaving) {
+                            void handleSavePreset();
+                        }
+                    }}
+                    className={cl("text-input")}
+                />
+            </div>
+
+            <div className={cl("search")}>
+                {!searchMode && (
+                    <Button
+                        size="small"
+                        disabled={isSaving || !presetName.trim() || !canUseGuild}
+                        onClick={handleSavePreset}
+                        className={cl("search-button")}
+                    >
+                        {isSaving ? "Saving..." : "Save Profile"}
+                    </Button>
+                )}
+                {isServerSection && !searchMode && (
+                    <Button
+                        size="small"
+                        variant="secondary"
+                        onClick={() => void handleCopyMainProfile()}
+                        disabled={!resolvedGuildId || isApplying || isCopying}
+                    >
+                        {isCopying ? "Copying..." : "Copy Main Profile to Server"}
+                    </Button>
+                )}
+                {hasPresets && (
+                    <Button
+                        size="small"
+                        variant={searchMode ? "primary" : "secondary"}
+                        onClick={() => {
+                            setSearchMode(current => !current);
+                            setSearchQuery("");
+                            handlePageChange(1);
+                        }}
+                    >
+                        {searchMode ? "Cancel Search" : "Search"}
+                    </Button>
+                )}
+                <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={() => void handleRandomPreset()}
+                    disabled={!presets.length || !canUseGuild || isApplying}
+                >
+                    Random
+                </Button>
+                <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={() => importPresets(() => {
+                        setSelectedPreset(-1);
+                        setCurrentPage(1);
+                        setPageInput("1");
+                        forceUpdate();
+                    }, showImportPrompt, storageSection, resolvedGuildId)}
+                    disabled={!canUseGuild}
+                >
+                    Import
+                </Button>
+                <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={() => exportPresets(storageSection)}
+                    disabled={!hasPresets}
+                >
+                    Export All
+                </Button>
+            </div>
+
+            {loadError && <div className={cl("no-results")} role="alert">{loadError}</div>}
+
+            {hasPresets && filteredPresets.length > 0 && (
+                <>
+                    <PresetList
+                        presets={currentPresets}
+                        allPresets={presets}
+                        avatarSize={avatarSize}
+                        selectedPreset={selectedPreset}
+                        onLoad={handleLoadPreset}
+                        onUpdate={() => {
+                            setSelectedPreset(currentPresetIndex);
+                            const newTotal = Math.ceil(presets.length / PRESETS_PER_PAGE);
+                            if (newTotal === 0) {
+                                setCurrentPage(1);
+                                setPageInput("1");
+                            } else if (currentPage > newTotal) {
+                                handlePageChange(newTotal);
+                            }
+                            forceUpdate();
+                        }}
+                        guildId={resolvedGuildId}
+                        isGuildProfile={isServerSection}
+                        section={storageSection}
+                        currentPage={currentPage}
+                        onPageChange={handlePageChange}
+                    />
+
+                    {shouldShowPagination && (
+                        <div className={cl("pagination")}>
+                            <Button
+                                size="small"
+                                variant="secondary"
+                                disabled={currentPage === 1}
+                                onClick={() => handlePageChange(currentPage - 1)}
+                            >
+                                ←
+                            </Button>
+                            <div className={cl("page")}>
+                                <input
+                                    type="text"
+                                    value={pageInput}
+                                    onChange={e => {
+                                        const { value } = e.target;
+                                        setPageInput(value);
+                                        const num = parseInt(value);
+                                        if (!isNaN(num) && num >= 1 && num <= totalPages) {
+                                            setCurrentPage(num);
+                                        }
+                                    }}
+                                    className={cl("page-input")}
+                                />
+                                <span className={cl("page-of")}>
+                                    / {totalPages}
+                                </span>
+                            </div>
+                            <Button
+                                size="small"
+                                variant="secondary"
+                                disabled={currentPage === totalPages}
+                                onClick={() => handlePageChange(currentPage + 1)}
+                            >
+                                →
+                            </Button>
+                        </div>
+                    )}
+
+                    <hr className={cl("block")} />
+                </>
+            )}
+
+            {searchMode && hasPresets && filteredPresets.length === 0 && (
+                <div className={cl("no-results")}>No saved profiles match “{searchQuery.trim()}”.</div>
+            )}
+
+            {(selectedPreset >= 0 || copiedMainProfile) && (
+                <div className={cl("pending-notice")}>
+                    <div>
+                        <strong>{copiedMainProfile ? "Main profile copied" : "Preset loaded"}</strong>
+                        <span>Review the preview, then use Discord&apos;s Save Changes button.</span>
+                    </div>
+                    {onOpenProfileEditor && (
+                        <Button size="small" variant="primary" onClick={onOpenProfileEditor}>
+                            Review Profile
+                        </Button>
+                    )}
+                </div>
+            )}
         </div>
-        <p className={cl("helper")}>Save your current profile or create a new one to apply later.</p>
-        {storageSection !== section && <p className={cl("helper")}>Showing your main saved collection. Collection edits are shared with Main Profile.</p>}
-        {isGuildProfile && <div className={cl("copy-card")}>
-            <Button type="button" size="small" disabled={!ready || busy} onClick={() => void run(async guard => {
-                await copyMainProfileToServer(guildId!, guard);
-                guard();
-                setSelectedId(undefined);
-                setNotice("Main profile copied to this server’s pending changes.");
-                showToast("Main profile copied. Review and save it in Discord.", Toasts.Type.SUCCESS);
-            })}>Copy Main Profile to Server</Button>
-        </div>}
-        <form className={cl("save-row")} onSubmit={e => { e.preventDefault(); void saveCurrent(); }}>
-            <label className={cl("field")} htmlFor={id + "-save"}><span>Save current profile</span>
-                <input id={id + "-save"} placeholder="Profile name" maxLength={100} value={presetName} disabled={!ready || busy}
-                    onChange={e => setPresetName(e.target.value)} />
-            </label>
-            <Button type="submit" size="small" variant="secondary" disabled={!ready || busy || !presetName.trim()}>Save Current</Button>
-        </form>
-        <div className={cl("toolbar")}>
-            <label className={cl("search-field")} htmlFor={id + "-search"}>
-                <span className={cl("sr-only")}>Search saved profiles</span>
-                <input id={id + "-search"} type="search" placeholder="Search profiles…" value={search}
-                    onChange={e => { setSearch(e.target.value); setPage(1); }} disabled={loading} />
-            </label>
-            <Button type="button" size="small" variant="secondary" disabled={!ready || busy || !filtered.length} onClick={() => {
-                const choices = filtered.length > 1 ? filtered.filter(preset => preset.id !== lastRandomId.current) : filtered;
-                const preset = choices[Math.floor(Math.random() * choices.length)];
-                lastRandomId.current = preset.id;
-                void apply(preset);
-            }}>Random</Button>
-            <Button type="button" size="small" variant="secondary" disabled={!ready || busy} onClick={() => fileInput.current?.click()}>Import</Button>
-            <Button type="button" size="small" variant="secondary" disabled={!ready || busy || !presets.length} onClick={() => exportPresets(storageSection)}>Export All</Button>
-            <input ref={fileInput} className={cl("sr-only")} type="file" accept=".json,application/json" tabIndex={-1} aria-label="Import profiles"
-                onChange={e => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (!file) return;
-                    void run(async guard => {
-                        const count = await importPresets(file, getScope(storageSection), promptImport);
-                        guard();
-                        if (!count) return;
-                        setSearch(""); setPage(1); setSelectedId(undefined); setNotice("");
-                        showToast(`Imported ${count} profiles.`, Toasts.Type.SUCCESS);
-                    });
-                }} />
-        </div>
-        {loading ? <div className={cl("empty-state")} role="status">Loading your saved profiles…</div>
-            : error ? <div className={cl("error")} role="alert"><p>{error}</p><Button type="button" size="small" onClick={() => void loadPresets(storageSection)}>Retry</Button></div>
-                : !presets.length ? <div className={cl("empty-state")}>No saved profiles yet. Save your current profile or add a new one.</div>
-                    : !filtered.length ? <div className={cl("no-results")}>No profiles match “{search}”.</div>
-                        : <PresetList presets={visible} allPresets={presets} avatarSize={avatarSize} selectedId={selectedId} disabled={busy || !ready}
-                            onLoad={apply} guildId={guildId} isGuildProfile={isGuildProfile} section={storageSection} />}
-        {totalPages > 1 && <nav className={cl("pagination")} aria-label="Saved profiles pages">
-            <Button type="button" size="small" variant="secondary" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)}>←</Button>
-            <span className={cl("page-of")} aria-live="polite">Page {currentPage} of {totalPages}</span>
-            <Button type="button" size="small" variant="secondary" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>→</Button>
-        </nav>}
-        {notice && <div className={cl("pending-notice")} role="status">
-            <div><strong>{notice}</strong><span>Use Discord&apos;s Save Changes button to commit the profile layout.</span></div>
-            <Button type="button" size="small" variant="primary" disabled={busy} onClick={onOpenProfileEditor}>Review Profile</Button>
-        </div>}
-        {!isGuildProfile && presets.some(preset => "customStatus" in preset) && <p className={cl("helper")}>Applying a saved custom status updates it immediately. Other profile fields wait for Discord&apos;s Save Changes.</p>}
-    </section>;
+    );
 }

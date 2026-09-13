@@ -1,5 +1,5 @@
 # ProfileSets
 
-See [ProfileSets/README.md](ProfileSets/README.md) for features, installation and verification.
+The complete plugin project is inside [`ProfileSets/`](ProfileSets/README.md).
 
-The release ZIP contains one top-level folder: **ProfileSets/**. Its source, tools, references and generated reports are all inside that folder.
+This revision restores the original ProfileSets design, recovers compatible saved-profile data, and adds only **Copy Main Profile to Server** to the interface.

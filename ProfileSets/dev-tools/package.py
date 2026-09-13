@@ -3,13 +3,12 @@ import argparse
 import hashlib
 import json
 import re
-import shutil
 import stat
 import zipfile
 from pathlib import Path, PurePosixPath
 
 EXCLUDE = {"node_modules", ".git", "__pycache__", ".vencord"}
-REQUIRED = ["index.tsx", "styles.css", "README.md", "components/draftEditor.tsx", "utils/profile.ts", "utils/storage.ts", "dev-tools/test.mjs", "dev-tools/paths.mjs", "dev-tools/ui/adapter.jsx", "dev-tools/ui/check.mjs", "dev-tools/ui/package-lock.json", "dev-tools/verify.yml"]
+REQUIRED = ["index.tsx", "styles.css", "README.md", "components/presetManager.tsx", "utils/profile.ts", "utils/storage.ts", "dev-tools/test.mjs", "dev-tools/paths.mjs", "dev-tools/ui/adapter.jsx", "dev-tools/ui/check.mjs", "dev-tools/ui/package-lock.json", "dev-tools/verify.yml"]
 
 
 def sha256(data):
