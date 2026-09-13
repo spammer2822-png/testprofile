@@ -1,8 +1,8 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { createRequire } from "node:module";
+import { vencordRoot, resultsDir, vencordRequire as require } from "./paths.mjs";
+import { join } from "node:path";
 
-const require = createRequire(new URL("../.vencord/package.json", import.meta.url));
 const puppeteer = require("puppeteer-core");
 const executablePath = [process.env.CHROMIUM_BIN, "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"].find(path => path && existsSync(path));
 if (!executablePath) throw new Error("Chrome was not found.");
@@ -10,7 +10,7 @@ const browser = await puppeteer.launch({ headless: true, executablePath, args: [
 try {
     const page = await browser.newPage();
     await page.setBypassCSP(true);
-    const reporter = await readFile(new URL("../.vencord/dist/browser.js", import.meta.url), "utf8");
+    const reporter = await readFile(join(vencordRoot, "dist/browser.js"), "utf8");
     await page.evaluateOnNewDocument(reporter);
     await page.goto("https://discord.com/login", { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForFunction(() => {
@@ -31,18 +31,13 @@ try {
             pendingAction: source.length > 0,
             fields: matches,
             imageObjectFieldsPresent: modules.some(code => code.includes("pendingAvatar") && code.includes("imageUri")),
-            excerpts: source.map(code => {
-                const position = code.indexOf("USER_PROFILE_SETTINGS_SET_PENDING_CHANGES");
-                return code.slice(Math.max(0, position - 120), position + 5000);
-            }).slice(0, 5),
             limitation: "Logged-out Discord Stable module inspection only; authenticated profile saves and entitlements require manual verification."
         };
     });
-    delete result.excerpts;
-    await mkdir("test-results", { recursive: true });
-    await writeFile("test-results/discord-compatibility.json", JSON.stringify(result, null, 2));
+    await mkdir(resultsDir, { recursive: true });
+    await writeFile(join(resultsDir, "discord-compatibility.json"), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));
-    if (!result.pendingStore || !result.pendingAction || Object.values(result.fields).some(value => !value)) throw new Error("Discord profile integration anchors could not be verified.");
+    if (!result.pendingStore || !result.pendingAction || !result.imageObjectFieldsPresent || Object.values(result.fields).some(value => !value)) throw new Error("Discord profile integration anchors could not be verified.");
 } finally {
     await browser.close();
 }

@@ -4,7 +4,7 @@
     justify-content: space-between;
     gap: 20px;
     width: 100%;
-    max-width: 860px;
+    max-width: 760px;
     margin-bottom: 24px;
 }
 .vc-profile-presets-tab-heading { margin: 0 0 6px; }
@@ -21,10 +21,10 @@
 .vc-profile-presets-section {
     box-sizing: border-box;
     width: 100%;
-    max-width: 860px;
+    max-width: 760px;
     min-width: 0;
     border: 1px solid var(--border-subtle, var(--background-modifier-accent));
-    border-radius: 14px;
+    border-radius: 12px;
     background: var(--background-surface-high, var(--background-secondary));
 }
 .vc-profile-presets-scope-card {
@@ -35,7 +35,7 @@
     margin-bottom: 16px;
     padding: 16px;
 }
-.vc-profile-presets-section { align-self: flex-start; padding: 20px; margin-bottom: 24px; }
+.vc-profile-presets-section { align-self: flex-start; padding: 18px; margin-bottom: 20px; }
 .vc-profile-presets-section-switch,
 .vc-profile-presets-draft-sources { display: flex; flex-wrap: wrap; gap: 8px; }
 .vc-profile-presets-guild-picker { width: min(320px, 100%); min-width: 0; }
@@ -51,7 +51,7 @@
 }
 .vc-profile-presets-field-label { display: block; }
 .vc-profile-presets-section-heading-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.vc-profile-presets-heading { margin: 0; font-size: 18px; color: var(--text-primary, var(--header-primary)); }
+.vc-profile-presets-heading { margin: 0; font-size: 16px; color: var(--text-primary, var(--header-primary)); }
 .vc-profile-presets-count {
     min-width: 20px;
     padding: 2px 7px;
@@ -119,7 +119,10 @@
 }
 .vc-profile-presets-list-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
 .vc-profile-presets-card {
-    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
     min-width: 0;
     border: 1px solid var(--border-subtle, var(--background-modifier-accent));
     border-radius: 12px;
@@ -131,19 +134,17 @@
 .vc-profile-presets-card.selected { background: var(--background-modifier-selected); }
 .vc-profile-presets-card-apply {
     display: block;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     padding: 0;
     border: 0;
-    border-radius: 12px;
+    border-radius: 8px;
     background: transparent;
     font: inherit;
     text-align: left;
     cursor: pointer;
 }
-.vc-profile-presets-card-banner { height: 64px; overflow: hidden; border-radius: 11px 11px 0 0; }
-.vc-profile-presets-card-banner img,
-.vc-profile-presets-draft-banner img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.vc-profile-presets-card-content { display: flex; align-items: center; gap: 12px; padding: 12px; }
+.vc-profile-presets-card-content { display: flex; align-items: center; gap: 12px; padding: 0; }
 .vc-profile-presets-avatar {
     box-sizing: border-box;
     display: block;
@@ -163,14 +164,14 @@
     width: 32px;
     height: 32px;
     padding: 0;
-    border: 1px solid rgb(255 255 255 / 25%);
+    border: 0;
     border-radius: 8px;
-    background: rgb(0 0 0 / 65%);
-    color: white;
+    background: transparent;
+    color: var(--interactive-normal, var(--text-normal));
     cursor: pointer;
 }
-.vc-profile-presets-card-menu { position: absolute; top: 10px; right: 10px; }
-.vc-profile-presets-menu-icon:hover { background: rgb(0 0 0 / 85%); }
+.vc-profile-presets-card-menu { flex-shrink: 0; }
+.vc-profile-presets-menu-icon:hover { background: var(--background-modifier-hover); }
 .vc-profile-presets-card button:disabled { cursor: default; opacity: 0.65; }
 .vc-profile-presets-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 18px; }
 .vc-profile-presets-page-of { color: var(--text-secondary, var(--text-normal)); font-size: 13px; }
@@ -185,7 +186,7 @@
     border-radius: 10px;
     background: var(--background-modifier-selected);
 }
-.vc-profile-presets-copy-card { margin-top: 18px; flex-wrap: wrap; }
+.vc-profile-presets-copy-card { margin: 12px 0; padding: 0; border: 0; background: transparent; }
 .vc-profile-presets-pending-notice { margin-top: 18px; border-color: var(--brand-500, #5865f2); }
 .vc-profile-presets-copy-card > div,
 .vc-profile-presets-pending-notice > div { display: flex; flex: 1 1 230px; flex-direction: column; gap: 4px; }
@@ -197,15 +198,7 @@
 .vc-profile-presets-draft-sources { margin: 16px 0; }
 .vc-profile-presets-draft-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 24px; }
 .vc-profile-presets-draft-fields { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.vc-profile-presets-draft-preview { border: 1px solid var(--border-subtle, var(--background-modifier-accent)); border-radius: 12px; background: var(--background-surface-high, var(--background-secondary)); overflow: hidden; }
-.vc-profile-presets-draft-banner { height: 100px; }
-.vc-profile-presets-draft-preview-body { display: flex; flex-direction: column; gap: 6px; padding: 14px; }
-.vc-profile-presets-draft-avatar { box-sizing: border-box; width: 80px; height: 80px; margin-top: -42px; border: 5px solid var(--background-surface-high, var(--background-secondary)); border-radius: 50%; object-fit: cover; }
-.vc-profile-presets-draft-preview-body strong { font-size: 18px; overflow-wrap: anywhere; }
-.vc-profile-presets-draft-preview-body span,
-.vc-profile-presets-draft-preview-body p { font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
-.vc-profile-presets-draft-preview-body p { margin: 6px 0 0; }
-.vc-profile-presets-image-field { display: flex; align-items: flex-end; gap: 8px; }
+.vc-profile-presets-image-field { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .vc-profile-presets-image-field label { flex: 1; }
 .vc-profile-presets-field input[type="file"] { padding: 8px; font-size: 12px; }
 .vc-profile-presets-field input::file-selector-button { max-width: 100%; margin-right: 8px; border: 0; border-radius: 4px; padding: 5px; cursor: pointer; }
@@ -229,3 +222,8 @@
 @media (prefers-reduced-motion: reduce) {
     .vc-profile-presets-card { transition: none; }
 }
+
+.vc-profile-presets-draft-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
+.vc-profile-presets-draft-banner-image { width: 120px; height: 56px; border-radius: 6px; object-fit: cover; }
+.vc-profile-presets-image-field img { flex-shrink: 0; }
+.vc-profile-presets-image-field label { flex-basis: 150px; }

@@ -1,95 +1,68 @@
-# Profile Sets technical notes
+# Technical notes
 
-## Verified baseline
+## Repository recovery and design
 
-This revision was analysed and built on 8 August 2026 against the following live/current versions.
+The initial upload was commit 33699a0d219e2566bb714b09233c988d1ac39323. The earlier feature work reached f1e5a430c2c2a8cde6269cbeabccc74d2174c5cf. The later d8d5b26 and ad7fa10 commits changed only the browser test script. The closed pull request was not merged; main still matched the initial upload when checked.
 
-| Component | Verified version |
-| --- | --- |
-| Discord Stable desktop shell | `1.0.9251` |
-| Discord web application | build `589596`, hash `95c90b96b37873e9caa7c79cc841ba6246589efd` |
-| Vencord | `1.15.0`, commit `1a8c3b71bbfaeb195a7f402458b6b68b0ccea7ef` |
-| Original ProfileSets repository | commit `8c1f75af7b19a9fb81ff078a0b3ce965eb2d1e2b` |
+The final work uses the existing feature implementation and restores a compact interface similar to the original: avatar/name rows, ordinary buttons, five profiles per page and a separate simple draft form. It removes the larger banner cards and decorative profile-preview panel.
 
-References:
+## Vencord and Discord integration
 
-- [Vencord source at the verified commit](https://github.com/Vendicated/Vencord/commit/1a8c3b71bbfaeb195a7f402458b6b68b0ccea7ef)
-- [Vencord custom-plugin installation guide](https://docs.vencord.dev/installing/custom-plugins/)
-- [Original ProfileSets repository](https://github.com/Eazvy/ProfileSets)
-- [Equicord's move of ProfileSets to a settings tab](https://github.com/Equicord/Equicord/commit/7e126aa1c2864e26ac9922896e38d3e92229367a)
-- [Discord web application](https://discord.com/app)
-- [Discord Stable desktop installer endpoint](https://discord.com/api/downloads/distributions/app/installers/latest?channel=stable&platform=win&arch=x64)
+Vencord 1.15.5, commit 0850f37fbb1623aa6330764d8f4b1e0b2617dcdf, was the current upstream main when checked on 13 September 2026.
 
-## Why the old integration failed
+The plugin registers its page using Settings.customEntries. It does not patch Discord's profile layout. The optional profile-opening hook falls back to profile_panel. UserSettingsAPI is now declared as a dependency, as its current implementation requires.
 
-The previous plugin injected `PresetManager` into Discord's profile page with two regular-expression patches. Their anchors were:
+Saved avatars and banners are resolved before any changes are staged. Uploads retain their imageUri and NEW_ASSET object shape. The pending-change dispatch is checked against UserProfileSettingsStore afterwards; a changed/unhandled action produces an error instead of silently reporting success.
 
-- `DefaultCustomizationSections: user cannot be undefined`
-- `profilePreviewTitle`
+The Discord probe inspects UserProfileSettingsStore.getPendingChanges, USER_PROFILE_SETTINGS_SET_PENDING_CHANGES, and avatar/banner/bio/pronouns/nickname/global-name fields in current Stable modules. The result includes the live build hash and timestamp. No account credentials are used.
 
-Neither string exists in the verified Discord bundle. The new profile editor is also a substantially different three-column interface, so changing only a CSS selector would not repair the mount point. When either patch failed, Discord simply never rendered the plugin's controls.
+## Feature boundaries
 
-## New integration architecture
+The draft editor starts blank. Start from Current Profile copies the current view including pending edits into the separate draft. Saving and editing call only preset storage, never the apply function. It edits uploaded avatar/banner images, name, bio, pronouns, status text, accent and theme colours. Existing cosmetics can be captured, retained or removed; it does not add a separate cosmetics shop/browser.
 
-The plugin now registers `profile_sets` through Vencord's `SettingsPlugin.customEntries` API and exposes the same page through a Vencord toolbox action. This removes all patches against Discord's profile-editor component tree.
+Copy Main Profile to Server fetches a fresh main snapshot with includePending:false and targets the selected guildId. It excludes main-only status and primaryGuildId and maps display name to nickname. The operation prepares pending changes for Discord's native Save Changes. It never submits an authenticated profile modification directly.
 
-The page provides an explicit Main Profile / Server Profile scope and guild picker. Loading a preset writes Discord's existing pending-profile state. `Review Profile` uses Discord's own `useOpenProfileSettings` chooser when it is available, so users in the new rollout get the self-profile modal shown by Discord while other users get `profile_panel`. A direct `profile_panel` route remains as the fallback. Discord therefore owns the current preview, validation and final Save Changes action.
+Applying a main preset retains the original immediate custom-status behaviour. The UI states this. Discord's permissions, Nitro and collectible ownership checks remain in force.
 
-This separation is deliberate:
+## Reliability and performance
 
-1. Vencord owns discovery and rendering of the Profile Sets manager.
-2. The plugin owns preset storage, validation and field translation.
-3. Discord owns previewing and submitting the final profile update.
+- Per-account ProfilePresets_v2_Main and ProfilePresets_v2_Server keys are preserved. Server presets are a reusable collection, as in the original plugin. The optional main collection on servers is preserved.
+- Storage writes are serialized; the UI publishes a new immutable collection only after a successful write. Scope generations and account checks reject stale asynchronous operations. Already-started writes finish under their original key.
+- Legacy backups are retained. An ownership marker prevents an unscoped legacy backup from being copied into multiple accounts. Invalid data produces a visible error and blocks replacement writes.
+- File imports validate fields, images and IDs. Image inputs support PNG/JPEG/GIF/WebP and trusted Discord CDN URLs. Upload signatures are checked; HTTP and read errors reject the operation.
+- Avatar/banner downloads run concurrently and in-flight requests are deduplicated. A bounded 24 MiB character-budget cache lasts five minutes. Applying skips downloads of existing target images. GIF data remains animated.
+- Explicit null avatar/banner values continue to mean removal/inheritance. Failed downloads cannot silently become null images.
+- Five profiles are rendered per page, with lazy image loading and memoised search/ID lookup. Keyboard actions do not bubble into Apply. Inputs/buttons have labels and focus states.
+- Maximum image size is 10 MiB, import size 64 MiB and collection size 500 presets.
 
-## Field mapping
+## Reproduce checks
 
-| Stored preset field | Discord pending/native target |
-| --- | --- |
-| `avatarDataUrl` + `avatarRaw` | Native avatar image handling, or `pendingAvatar: null` for an inherited/default avatar |
-| `bannerDataUrl` | Native banner image-preview flow or `pendingBanner` for a cleared value |
-| `bio` | `pendingBio` |
-| `pronouns` | `pendingPronouns` |
-| `globalName` | `pendingGlobalName` or `pendingNickname` for a server profile |
-| `avatarDecoration` | `pendingAvatarDecoration` |
-| `profileEffect` | `pendingProfileEffect` |
-| `profileFrame` | `pendingProfileFrame` |
-| `nameplate` | `pendingNameplate` |
-| `displayNameStyles` | `pendingDisplayNameStyles` |
-| `accentColor` | `pendingAccentColor` |
-| `themeColors` | `pendingThemeColors` |
-| `primaryGuildId` | `pendingPrimaryGuildId` |
-| `customStatus` | Discord's custom-status user setting |
+Requires Node.js 24, Python 3.10+, Chrome, a Vencord source checkout with its dependencies installed, and the UI test dependencies. All project test scripts are under dev-tools.
 
-Non-image profile changes are sent in one `USER_PROFILE_SETTINGS_SET_PENDING_CHANGES` dispatch. Explicit `null` values are preserved so a preset can remove an equipped collectible, style, colour, server tag or other optional value rather than accidentally retaining the current one. Custom status remains separate because Discord manages it through its synced custom-status user setting; it may therefore update as soon as a preset is loaded.
+From this extracted ProfileSets folder in CMD:
 
-## Data and failure handling
-
-- Existing `ProfilePresets_v2_Main` and `ProfilePresets_v2_Server` keys are retained.
-- Async storage loads use a generation guard so a slower previous scope cannot overwrite a newly selected scope.
-- Imports require an array of objects with a non-empty string `name` and finite numeric `timestamp` before storage is changed.
-- Profile reads fetch missing global or guild profile data before creating a snapshot.
-- Applying and saving are guarded against duplicate interaction and surface failures as Discord toasts.
-- The interface uses Discord theme tokens, responsive layout, focus-visible states and reduced-motion handling.
-
-## Compatibility boundary
-
-No client mod can guarantee compatibility with every unannounced Discord change. This version removes the most fragile dependency: component-source regexes tied to a particular profile layout. A future change to Discord's pending-profile store/action names could require an update to `utils/profile.ts`, but the Profile Sets page itself will remain registered and reachable.
-
-When updating, first verify that the following still exist in Discord's bundle:
-
-- `USER_PROFILE_SETTINGS_SET_PENDING_CHANGES`
-- `PROFILE_CUSTOMIZATION_OPEN_PREVIEW_MODAL`
-- `UserProfileSettingsStore.getPendingChanges`
-- either Discord's `useOpenProfileSettings` helper or the `profile_panel` settings route
-
-## Verification
-
-With this folder copied to `src/userplugins/profileSets` in the verified Vencord checkout, the following commands complete without errors:
-
-```sh
-pnpm buildStandalone
-pnpm buildReporterDesktop
-pnpm testTsc
-pnpm eslint src/userplugins/profileSets
-pnpm stylelint src/userplugins/profileSets/styles.css
+```bat
+set "PROFILESETS_VENCORD_DIR=C:\path\to\Vencord"
+set "CHROMIUM_BIN=C:\Program Files\Google\Chrome\Application\chrome.exe"
+npm ci --prefix dev-tools\ui --ignore-scripts
+node dev-tools\test.mjs
+node dev-tools\ui\check.mjs
 ```
+
+PROFILESETS_UI_PACKAGE can point to an existing dev-tools/ui/package.json when testing another extracted copy. PROFILESETS_TEST_OUTPUT optionally changes the result destination; by default results stay inside ProfileSets/test-results. Node file URL conversions use fileURLToPath for Windows compatibility.
+
+To create and verify an archive from the parent of ProfileSets:
+
+```bat
+python ProfileSets\dev-tools\package.py --output ProfileSets.zip --extract-dir extracted-check
+```
+
+The extraction directory must be new or empty. The script checks the single top-level folder, required files, runtime relative imports, documentation links, CRC, filename case collisions, path traversal and exact extracted bytes. Generated MANIFEST.sha256 lists every packaged file except itself. node_modules, git metadata, Python caches and ZIPs are excluded.
+
+The included dev-tools/verify.yml is the GitHub Actions workflow template. In the repository it also lives at .github/workflows/verify.yml, the location GitHub requires. The final archive places that copy inside ProfileSets/dev-tools only.
+
+## Test limits
+
+Regression tests exercise actual bundled modules with mocked Discord boundaries. Browser tests render actual plugin components in Chrome with mocked Discord services and a test modal shell. Source from the extracted ZIP is installed into pinned Vencord for full desktop/web builds and TypeScript checking. A logged-out live Discord module check supplements these tests.
+
+These checks cannot prove authenticated Save Changes, premium entitlements or rendering under every account-specific Discord rollout. On a real account, verify image previews/final saved GIFs, main/server Review Profile routes, server-copy isolation and normal Discord entitlement errors. Creating or editing drafts should leave both the active profile and existing pending edits untouched.

@@ -1,17 +1,16 @@
-# Profile Sets image fix
+# Changes and fixes
 
-## What was fixed
+- Added Copy Main Profile to Server and isolated Add New Profile / Edit Saved Profile.
+- Kept the original compact list style and five profiles per page; simplified the earlier redesign.
+- Added the UserSettingsAPI dependency required by current Vencord.
+- Fixed failed storage writes reporting success, lost concurrent writes and stale account/collection operations.
+- Preserved avatar/banner removals, GIF bytes and profile effect IDs even when metadata is incomplete.
+- Rejected failed/non-image downloads before staging profile changes.
+- Added parallel image loading, bounded caching, persistent search and lazy thumbnails.
+- Fixed keyboard menu activation accidentally applying a preset.
+- Validated imports, handled cancellation and assigned unique preset IDs.
+- Retained legacy backups while preventing unscoped data migration into multiple accounts.
+- Moved development files, references and generated results inside the single ProfileSets package.
+- Added archive creation, extraction, byte-comparison, path and manifest checks.
 
-Saved avatar and banner images that are stored as data URIs were being sent through Discord's `PROFILE_CUSTOMIZATION_OPEN_PREVIEW_MODAL` event. With the current Discord profile editor, that flow can render the animated image in the chooser/preview without putting it into `UserProfileSettingsStore`'s pending profile state. The other saved fields therefore changed while the avatar/banner stayed unchanged.
-
-The fix removes that preview-modal dependency for preset loading. When a preset contains a data-URI avatar or banner, the plugin now places an image object directly into `pendingAvatar` / `pendingBanner` and dispatches `USER_PROFILE_SETTINGS_SET_PENDING_CHANGES`, which is the state used by Discord's current profile editor.
-
-Animated data URIs are preserved as-is; no GIF-to-PNG conversion is performed.
-
-## Installation
-
-Copy the `ProfileSets` folder from this archive into:
-
-`<Vencord checkout>\\src\\userplugins\\profileSets`
-
-Then rebuild Vencord and inject it, and enable **ProfileSets** in Vencord settings.
+See README.md for installation and TECHNICAL_NOTES.md for test coverage and limits.

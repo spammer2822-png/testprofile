@@ -16,7 +16,7 @@ import { ImportProfilesModal } from "./confirmModal";
 import { DraftEditor } from "./draftEditor";
 import { PresetList } from "./presetList";
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 5;
 type Props = {
     section: PresetSection;
     storageSection: PresetSection;
@@ -67,7 +67,7 @@ export function PresetManager({ section, storageSection, guildId, onOpenProfileE
         busyRef.current = true;
         setBusy(true);
         onBusyChange(true);
-        try { await action(guard); }
+        try { guard(); await action(guard); }
         catch (err) {
             showToast(err instanceof Error ? err.message : "Could not complete this profile action.", Toasts.Type.FAILURE);
         } finally {
@@ -113,10 +113,9 @@ export function PresetManager({ section, storageSection, guildId, onOpenProfileE
                     onSaved={() => { setSearch(""); setPage(Math.ceil(getSnapshot().presets.length / PAGE_SIZE)); }} />);
             }}>+ Add New Profile</Button>
         </div>
-        <p className={cl("helper")}>Build a new layout without changing your active profile, or save a snapshot below.</p>
+        <p className={cl("helper")}>Save your current profile or create a new one to apply later.</p>
         {storageSection !== section && <p className={cl("helper")}>Showing your main saved collection. Collection edits are shared with Main Profile.</p>}
         {isGuildProfile && <div className={cl("copy-card")}>
-            <div><strong>Bring your main layout here</strong><span>Copy your current main profile to the selected server. Your main profile and status stay unchanged.</span></div>
             <Button type="button" size="small" disabled={!ready || busy} onClick={() => void run(async guard => {
                 await copyMainProfileToServer(guildId!, guard);
                 guard();
@@ -127,7 +126,7 @@ export function PresetManager({ section, storageSection, guildId, onOpenProfileE
         </div>}
         <form className={cl("save-row")} onSubmit={e => { e.preventDefault(); void saveCurrent(); }}>
             <label className={cl("field")} htmlFor={id + "-save"}><span>Save current profile</span>
-                <input id={id + "-save"} placeholder="Name this snapshot" maxLength={100} value={presetName} disabled={!ready || busy}
+                <input id={id + "-save"} placeholder="Profile name" maxLength={100} value={presetName} disabled={!ready || busy}
                     onChange={e => setPresetName(e.target.value)} />
             </label>
             <Button type="submit" size="small" variant="secondary" disabled={!ready || busy || !presetName.trim()}>Save Current</Button>
@@ -162,7 +161,7 @@ export function PresetManager({ section, storageSection, guildId, onOpenProfileE
         </div>
         {loading ? <div className={cl("empty-state")} role="status">Loading your saved profiles…</div>
             : error ? <div className={cl("error")} role="alert"><p>{error}</p><Button type="button" size="small" onClick={() => void loadPresets(storageSection)}>Retry</Button></div>
-                : !presets.length ? <div className={cl("empty-state")}><strong>Your next profile starts here</strong><p>Use Add New Profile to create a layout, or Save Current to keep this one.</p></div>
+                : !presets.length ? <div className={cl("empty-state")}>No saved profiles yet. Save your current profile or add a new one.</div>
                     : !filtered.length ? <div className={cl("no-results")}>No profiles match “{search}”.</div>
                         : <PresetList presets={visible} allPresets={presets} avatarSize={avatarSize} selectedId={selectedId} disabled={busy || !ready}
                             onLoad={apply} guildId={guildId} isGuildProfile={isGuildProfile} section={storageSection} />}

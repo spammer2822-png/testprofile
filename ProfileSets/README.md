@@ -1,56 +1,53 @@
-# Profile Sets
+# ProfileSets
 
-Save, organise, import, export and load complete Discord profile presets from a dedicated **Profile Sets** page in Vencord Settings.
+Save, create and load Discord profile presets from **User Settings → Vencord Settings → Profile Sets**.
 
-## Current compatibility
+## What changed
 
-Verified on 8 August 2026 against:
+- **Add New Profile** opens a separate draft. Set its name, images, text and colours, then save it. Your active profile and Discord's pending edits are unchanged. Apply the saved profile separately later.
+- **Copy Main Profile to Server** appears under Server Profile. Choose the server and click the button. It copies the current main layout into that server's pending changes. Use **Review Profile**, then Discord's **Save Changes**.
+- **Edit Saved Profile** is available from a saved profile's three-dot menu. It edits the stored preset without applying it.
+- The original compact avatar/name rows, simple controls and five profiles per page are retained. Search, random selection, rename, move, update and import/export are supported.
 
-- Discord Stable desktop shell `1.0.9251`
-- Discord web build `589596` (`95c90b96b37873e9caa7c79cc841ba6246589efd`)
-- Vencord `1.15.0`, commit `1a8c3b71bbfaeb195a7f402458b6b68b0ccea7ef`
+Copying excludes unsaved main edits, custom status and the main server tag. Main display name maps to server nickname. Discord still checks Nitro, permissions and access to cosmetics.
 
-The old plugin patched two components inside Discord's former profile-settings page. Discord's new three-column profile editor removed both patch anchors, so the component never mounted. This version registers a normal Vencord settings page instead. It has no patch against Discord's profile layout and therefore does not disappear when Discord renames or rearranges that layout.
+Applying a main preset's **custom status updates it immediately**, as in the original plugin. The other fields stay pending until you use Discord's Save Changes. Saving or editing a draft never updates the status.
 
-## Saved fields
+## Installation — existing Vencord source checkout
 
-- Avatar and banner
-- Bio and pronouns
-- Main display name or server nickname
-- Avatar decoration
-- Nameplate
-- Display-name style
-- Profile effect
-- Profile frame (new profile layout)
-- Accent and profile theme colours
-- Primary server tag
-- Custom status for main profiles
+1. Extract the ZIP. Its only top-level entry is **ProfileSets/**.
+2. Replace the old plugin folder with this complete folder at **src/userplugins/profileSets** in your Vencord checkout. Keep one copy of the plugin. The folder must directly contain **index.tsx**; avoid nesting ProfileSets inside another profileSets folder.
+3. Open CMD in your Vencord source checkout and run:
 
-Existing `ProfilePresets_v2_Main` and `ProfilePresets_v2_Server` data is reused; no preset migration is required.
+```bat
+cd /d "%APPDATA%\Vencord\Vencord"
+pnpm install --frozen-lockfile
+pnpm build
+pnpm inject
+```
 
-## Use
+4. Restart Discord and enable **ProfileSets** under Vencord Plugins.
 
-1. Open **User Settings → Vencord Settings → Profile Sets**. You can also use the plugin's **Open Profile Sets** toolbox action.
-2. Choose **Main Profile** or **Server Profile**. For a server profile, choose the server.
-3. Enter a name and select **Save Profile**.
-4. Select any saved profile to load it as Discord pending changes.
-5. Select **Review Profile**, inspect it in Discord's new profile editor, and use Discord's **Save Changes** button.
+If your Vencord checkout is elsewhere, use that path in the first command. This ZIP is a custom plugin's source code; it needs a Vencord source build. See the [official installation guide](https://docs.vencord.dev/installing/custom-plugins/).
 
-Loading deliberately leaves profile fields as pending changes for review instead of submitting them automatically. Custom status is the exception because Discord stores it through a separate synced setting and may update it immediately. Avatar or banner presets use Discord's own image handling and may show its confirmation or entitlement UI when required.
+Existing saved presets use the same per-account storage keys. Updating the plugin files does not delete them.
 
-## Install
+## Folder contents
 
-Profile Sets is a custom Vencord plugin, so Vencord must be built from source.
+- **index.tsx**, **components/**, **utils/**, **styles.css** — the plugin.
+- **dev-tools/** — regression/browser tests, the packaging checker and the CI workflow template.
+- **test-results/** — generated verification results and screenshots in the final tested distribution.
+- **MANIFEST.sha256** — checksums for the files in the archive.
+- **LICENSE**, **FIX_NOTES.md**, **TECHNICAL_NOTES.md** — licence and supporting notes.
 
-1. Copy this complete folder to `src/userplugins/profileSets` in your Vencord checkout.
-2. From the Vencord folder, run `pnpm install` if needed.
-3. Run `pnpm build` and then `pnpm inject`.
-4. Restart Discord and enable **ProfileSets** in Vencord's Plugins page.
+The test tools are separate from the runtime module imports. You do not need to run them to use the plugin.
 
-Vencord's official custom-plugin guide is available at <https://docs.vencord.dev/installing/custom-plugins/>.
+## Verification
 
-## Update resilience
+The release workflow creates a ZIP, extracts it, then runs regression and browser checks using that extracted code. It copies the extracted folder into Vencord for desktop/web builds and full TypeScript checking. The final ZIP is then extracted again and every file is compared byte-for-byte, with runtime import and local documentation links checked.
 
-The visible page uses Vencord's settings registration and standard Vencord components. The only Discord internals used are the profile stores and the existing `USER_PROFILE_SETTINGS_SET_PENDING_CHANGES` action. If Discord changes those data APIs in the future, the Profile Sets page will remain reachable and failures surface as an error toast instead of silently removing the entire UI.
+Vencord is pinned to **1.15.5**, commit **0850f37fbb1623aa6330764d8f4b1e0b2617dcdf**. The Discord Stable probe records the live web build hash. See the included test-results for the run's actual results.
 
-See [TECHNICAL_NOTES.md](./TECHNICAL_NOTES.md) for the failure analysis, field mapping, compatibility boundaries and verification procedure.
+Browser tests use the real plugin components with mocked Discord services and a test modal shell. The live Discord probe inspects modules while logged out. Authenticated profile submission, account-specific entitlements and every Discord experiment still require a real account check.
+
+See [technical notes](TECHNICAL_NOTES.md) for details and test commands.

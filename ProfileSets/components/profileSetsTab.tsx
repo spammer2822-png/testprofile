@@ -101,7 +101,7 @@ function ProfileSetsTab() {
                 <div>
                     <HeadingPrimary className={cl("tab-heading")}>Profile Sets</HeadingPrimary>
                     <p className={cl("tab-description")}>
-                        Your profiles, ready when you are. Create layouts, keep favourites and bring your main look to any server.
+                        Save and load main or server profiles. Review changes in Discord before saving them.
                     </p>
                 </div>
                 <Button
@@ -137,8 +137,8 @@ function ProfileSetsTab() {
                 </div>
 
                 {section === "server" && (
-                    <div className={cl("guild-picker")}>
-                        <label className={cl("field-label")}>Server</label>
+                    <div className={cl("guild-picker")} role="group" aria-labelledby="profile-sets-server-label">
+                        <div className={cl("field-label")} id="profile-sets-server-label">Server</div>
                         <SearchableSelect
                             isDisabled={busy}
                             options={guildOptions}

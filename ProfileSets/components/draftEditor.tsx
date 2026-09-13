@@ -30,7 +30,10 @@ export function DraftEditor({ scope, initial, guildId, isGuildProfile, onSaved, 
     const busyRef = React.useRef(false);
     const mounted = React.useRef(true);
     const id = React.useId();
-    React.useEffect(() => () => { mounted.current = false; }, []);
+    React.useEffect(() => {
+        mounted.current = true;
+        return () => { mounted.current = false; };
+    }, []);
     const guard = () => {
         assertScope(scope);
         if (!mounted.current) throw new Error("The draft editor was closed.");
@@ -67,7 +70,7 @@ export function DraftEditor({ scope, initial, guildId, isGuildProfile, onSaved, 
 
     return (
         <Modal {...props} onClose={() => { if (!busyRef.current) props.onClose(); }}
-            size="lg" title={initial ? "Edit Saved Profile" : "Add New Profile"}
+            size="md" title={initial ? "Edit Saved Profile" : "Add New Profile"}
             subtitle="Create and save your layout here. Apply it separately from Saved Profiles."
             actions={[
                 { text: busy ? "Saving…" : "Save Profile", variant: "primary", disabled: busy || !draft.name.trim(), onClick: () => void save() },
@@ -109,20 +112,9 @@ export function DraftEditor({ scope, initial, guildId, isGuildProfile, onSaved, 
                         </label>}
                     </div>
                     <div className={cl("draft-fields")}>
-                        <div className={cl("draft-preview")} aria-label="Draft preview">
-                            <div className={cl("draft-banner")} style={{ background: colorValue(draft.accentColor) }}>
-                                {draft.bannerDataUrl && <img src={draft.bannerDataUrl} alt="" />}
-                            </div>
-                            <div className={cl("draft-preview-body")}>
-                                {draft.avatarDataUrl && draft.avatarRaw !== null ? <img className={cl("draft-avatar")} src={draft.avatarDataUrl} alt="Draft avatar" />
-                                    : <div className={cl("draft-avatar", "avatar-placeholder")} aria-label="Default or inherited avatar">◎</div>}
-                                <strong>{draft.globalName || "Your display name"}</strong>
-                                <span>{draft.pronouns}</span>
-                                <p>{draft.bio || "Your about me will appear here."}</p>
-                            </div>
-                        </div>
                         {(["avatarDataUrl", "bannerDataUrl"] as const).map((key, index) => (
                             <div className={cl("image-field")} key={key}>
+                                {draft[key] && <img className={cl(index === 0 ? "draft-avatar" : "draft-banner-image")} src={draft[key]!} alt={index === 0 ? "Draft avatar" : "Draft banner"} />}
                                 <label className={cl("field")} htmlFor={id + key}>
                                     <span>{index === 0 ? "Avatar" : "Banner"}</span>
                                     <input id={id + key} type="file" accept="image/png,image/jpeg,image/gif,image/webp" disabled={busy}

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
+import { pluginRoot, resultsDir, vencordRequire as require } from "./paths.mjs";
+import { join } from "node:path";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import vm from "node:vm";
 import { webcrypto } from "node:crypto";
 
-const require = createRequire(new URL("../.vencord/package.json", import.meta.url));
 const { build } = require("esbuild");
-const root = new URL("../", import.meta.url).pathname;
+const root = pluginRoot;
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6L68AAAAASUVORK5CYII=";
 const GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 const clone = value => value == null ? value : structuredClone(value);
@@ -49,7 +49,7 @@ async function harness() {
         findStoreLazy: () => ({ getPendingChanges: guild => pending[guild ?? "main"] ?? {} })
     };
     const bundle = await build({
-        stdin: { contents: 'export * from "./ProfileSets/utils/schema"; export * from "./ProfileSets/utils/storage"; export * from "./ProfileSets/utils/actions"; export * from "./ProfileSets/utils/profile"; export * from "./ProfileSets/utils/images";', resolveDir: root, sourcefile: "test-entry.ts" },
+        stdin: { contents: 'export * from "./utils/schema"; export * from "./utils/storage"; export * from "./utils/actions"; export * from "./utils/profile"; export * from "./utils/images";', resolveDir: root, sourcefile: "test-entry.ts" },
         bundle: true, write: false, format: "cjs", platform: "node",
         plugins: [{
             name: "discord-test-adapter",
@@ -138,6 +138,13 @@ await test("Legacy migration retains its backup and assigns stable IDs", async (
     assert.ok(h.api.getSnapshot().presets[0].id);
     assert.ok(h.db.has("ProfileDataset:100:main"));
 });
+await test("An unscoped legacy backup is only migrated to one account", async () => {
+    const h = await harness(); h.db.set("ProfileDataset", [{ name: "Private old profile", timestamp: 1 }]);
+    await h.api.loadPresets("main"); assert.equal(h.api.getSnapshot().presets.length, 1);
+    h.switchUser("200"); await h.api.loadPresets("main");
+    assert.equal(h.api.getSnapshot().presets.length, 0);
+    assert.ok(h.db.has("ProfileDataset"));
+});
 await test("Corrupt storage blocks writes rather than replacing the collection", async () => {
     const h = await harness(); h.db.set("ProfilePresets_v2_Main:100", [{ name: "Broken", timestamp: "bad" }]);
     await h.api.loadPresets("main"); assert.ok(h.api.getSnapshot().error);
@@ -219,6 +226,6 @@ await test("Saving a pending avatar removal preserves null despite inherited pre
     const profile = await h.api.getCurrentProfile("999", { isGuildProfile: true });
     assert.equal(profile.avatarRaw, null); assert.equal(profile.bannerDataUrl, null);
 });
-await mkdir("test-results", { recursive: true });
-await writeFile("test-results/regression.json", JSON.stringify({ passed: results.filter(r => r.passed).length, total: results.length, results }, null, 2));
+await mkdir(resultsDir, { recursive: true });
+await writeFile(join(resultsDir, "regression.json"), JSON.stringify({ passed: results.filter(r => r.passed).length, total: results.length, results }, null, 2));
 if (results.some(result => !result.passed)) process.exitCode = 1;

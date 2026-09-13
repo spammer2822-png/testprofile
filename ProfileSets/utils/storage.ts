@@ -65,7 +65,20 @@ export async function loadPresets(section: PresetSection) {
         assertScope(scope);
         if (stored == null && section === "main") {
             const legacyKey = `ProfileDataset:${userId}:main`;
-            const legacy = await DataStore.get(legacyKey) ?? await DataStore.get("ProfileDataset");
+            let legacy = await DataStore.get(legacyKey);
+            const ownerKey = "ProfileSets:LegacyDatasetOwner";
+            if (legacy == null) {
+                const owner = await DataStore.get(ownerKey);
+                assertScope(scope);
+                if (owner == null || owner === userId) {
+                    legacy = await DataStore.get("ProfileDataset");
+                    assertScope(scope);
+                    if (legacy != null && owner == null) {
+                        normalisePresets(legacy);
+                        await DataStore.set(ownerKey, userId);
+                    }
+                }
+            }
             assertScope(scope);
             if (legacy != null) {
                 stored = normalisePresets(legacy);

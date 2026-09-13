@@ -72,16 +72,13 @@ export function PresetList({ presets, allPresets, avatarSize, selectedId, disabl
             return <article key={preset.id} className={cl("card") + (selected ? " selected" : "")}>
                 <button type="button" className={cl("card-apply")} disabled={locked} onClick={() => void onLoad(preset)}
                     aria-label={`Apply ${preset.name}`} aria-pressed={selected}>
-                    <div className={cl("card-banner")} style={{ backgroundColor: `#${(preset.accentColor ?? 0x5865f2).toString(16).padStart(6, "0")}` }}>
-                        {preset.bannerDataUrl && <img src={preset.bannerDataUrl} alt="" loading="lazy" decoding="async" />}
-                    </div>
                     <div className={cl("card-content")}>
                         {preset.avatarDataUrl ? <img src={preset.avatarDataUrl} alt="" className={cl("avatar")} width={avatarSize} height={avatarSize} loading="lazy" decoding="async" />
                             : <div className={cl("avatar", "avatar-placeholder")} style={{ width: avatarSize, height: avatarSize }}>◎</div>}
                         <div className={cl("card-copy")}>
                             <strong className={cl("name")} title={preset.name}>{preset.name}</strong>
                             <span className={cl("timestamp")}>{dates.format(new Date(preset.timestamp))}</span>
-                            <span className={cl("apply-label")}>{selected ? "Loaded · pending changes" : "Apply profile"}</span>
+                            {selected && <span className={cl("apply-label")}>Loaded</span>}
                         </div>
                     </div>
                 </button>
